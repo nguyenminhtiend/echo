@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash(mise run *)",
+      "Bash(cd apps/api && uv run *)",
+      "Bash(cd apps/web && bun *)",
+      "Bash(docker compose *)",
+      "Bash(git *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(curl * | bash)",
+      "Bash(wget * | bash)"
+    ]
+  },
+  "hooks": {
+    "Bash": {
+      "pre": [".claude/hooks/validate-bash.sh"]
+    }
+  }
+}
