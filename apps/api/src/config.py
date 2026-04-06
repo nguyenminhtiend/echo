@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://echo:echo@localhost:5432/echo"
+    database_url: str = "postgresql+asyncpg://admin:123456@127.0.0.1:5432/echo"
     ollama_base_url: str = "http://localhost:11434"
     echo_llm_model: str = "ollama/gemma4:8b"
     echo_embed_model: str = "nomic-embed-text"
