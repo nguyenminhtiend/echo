@@ -2,11 +2,11 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://admin:123456@127.0.0.1:5432/echo"
-    ollama_base_url: str = "http://localhost:11434"
-    echo_llm_model: str = "ollama/gemma4:8b"
-    echo_embed_model: str = "nomic-embed-text"
-    secret_key: str = "change-me-in-production"
+    database_url: str
+    ollama_base_url: str
+    echo_llm_model: str
+    echo_embed_model: str
+    secret_key: str
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

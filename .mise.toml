@@ -6,6 +6,9 @@ bun = "latest"
 [env]
 DATABASE_URL = "postgresql+asyncpg://admin:123456@127.0.0.1:5432/echo"
 OLLAMA_BASE_URL = "http://localhost:11434"
+ECHO_LLM_MODEL = "ollama/gemma4:e4b"
+ECHO_EMBED_MODEL = "nomic-embed-text:latest"
+SECRET_KEY = "change-me-in-production"
 
 [tasks.dev]
 description = "Start all services for development"
