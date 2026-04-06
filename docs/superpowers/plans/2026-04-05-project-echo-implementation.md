@@ -3801,6 +3801,7 @@ interactive approval/rejection UI for human-in-the-loop checkpoints."
 **Files:**
 - Create: `apps/web/src/app/dashboard/rag/page.tsx`
 - Create: `apps/web/src/app/dashboard/rag/graph/page.tsx`
+- Create: `apps/web/src/components/graph-viz/knowledge-graph.tsx`
 - Create: `apps/web/src/app/dashboard/settings/page.tsx`
 - Create: `apps/web/src/app/dashboard/admin/page.tsx`
 - Create: `apps/web/src/db/schema.ts`
@@ -3826,7 +3827,7 @@ export default function RAGPage() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    const data = await apiFetch<{ results: RAGResult[] }>("/api/rag/query", {
+    const data = await apiFetch<RAGQueryResponse>("/api/rag/query", {
       method: "POST",
       body: JSON.stringify({ query }),
     });
@@ -3892,7 +3893,68 @@ export default function GraphPage() {
 }
 ```
 
-- [ ] **Step 3: Create settings page**
+- [ ] **Step 3: Create knowledge graph component**
+
+Create `apps/web/src/components/graph-viz/knowledge-graph.tsx`:
+
+```tsx
+"use client";
+
+import { useEffect, useRef } from "react";
+
+interface GraphNode {
+  id: string;
+  label: string;
+  type: string;
+}
+
+interface GraphEdge {
+  source: string;
+  target: string;
+  relation: string;
+}
+
+interface Props {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export function KnowledgeGraph({ nodes, edges }: Props) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || nodes.length === 0) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Simple force-directed layout placeholder
+    // In production, replace with d3-force or react-force-graph
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#888";
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(
+      `${nodes.length} nodes, ${edges.length} edges`,
+      canvas.width / 2,
+      canvas.height / 2,
+    );
+  }, [nodes, edges]);
+
+  if (nodes.length === 0) {
+    return (
+      <div className="flex h-96 items-center justify-center text-muted-foreground">
+        No graph data. Run <code>mise run index</code> to index the codebase.
+      </div>
+    );
+  }
+
+  return <canvas ref={canvasRef} width={800} height={600} className="w-full rounded border" />;
+}
+```
+
+- [ ] **Step 4: Create settings page**
 
 Create `apps/web/src/app/dashboard/settings/page.tsx`:
 
@@ -3918,7 +3980,7 @@ export default function SettingsPage() {
 }
 ```
 
-- [ ] **Step 4: Create admin page**
+- [ ] **Step 5: Create admin page**
 
 Create `apps/web/src/app/dashboard/admin/page.tsx`:
 
@@ -3960,7 +4022,7 @@ export default function AdminPage() {
 }
 ```
 
-- [ ] **Step 5: Create Drizzle schema (read-only mirror)**
+- [ ] **Step 6: Create Drizzle schema (read-only mirror)**
 
 Create `apps/web/src/db/schema.ts`:
 
@@ -4002,7 +4064,7 @@ export const costLedger = pgTable("cost_ledger", {
 });
 ```
 
-- [ ] **Step 6: Create Drizzle config**
+- [ ] **Step 7: Create Drizzle config**
 
 Create `apps/web/src/db/drizzle.config.ts`:
 
@@ -4018,15 +4080,15 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add apps/web/src/app/dashboard/rag/ apps/web/src/app/dashboard/settings/ apps/web/src/app/dashboard/admin/ apps/web/src/db/
-git commit -m "feat(web): add RAG explorer, settings, admin pages, Drizzle schema
+git add apps/web/src/app/dashboard/rag/ apps/web/src/app/dashboard/settings/ apps/web/src/app/dashboard/admin/ apps/web/src/components/graph-viz/ apps/web/src/db/
+git commit -m "feat(web): add RAG explorer, knowledge graph, settings, admin pages, Drizzle schema
 
-RAG search page queries /api/rag/query. Graph visualization placeholder.
-Settings shows model config. Admin shows user/cost/audit sections.
-Drizzle schema mirrors PostgreSQL tables for type-safe reads."
+RAG search page queries /api/rag/query. KnowledgeGraph canvas component
+for graph visualization. Settings shows model config. Admin shows
+user/cost/audit sections. Drizzle schema mirrors PostgreSQL tables."
 ```
 
 ---
@@ -4126,6 +4188,193 @@ OpenTelemetry SDK, FastAPI auto-instrumentation for all endpoints."
 
 ---
 
+## Task 15: Frontend Component Tests
+
+**Goal:** Write vitest tests for the trace-viewer and agent-console components.
+
+**Files:**
+- Create: `apps/web/tests/setup.ts`
+- Create: `apps/web/tests/components/trace-viewer.test.tsx`
+- Create: `apps/web/tests/components/agent-console.test.tsx`
+
+- [ ] **Step 1: Create test setup**
+
+Create `apps/web/tests/setup.ts`:
+
+```typescript
+import "@testing-library/jest-dom/vitest";
+```
+
+Install test dependencies:
+```bash
+cd apps/web && bun add -d @testing-library/react @testing-library/jest-dom jsdom
+```
+
+Add to `apps/web/vitest.config.ts` (or create if not present):
+
+```typescript
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import { resolve } from "path";
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./tests/setup.ts"],
+    globals: true,
+  },
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "./src"),
+    },
+  },
+});
+```
+
+- [ ] **Step 2: Write trace-viewer tests**
+
+Create `apps/web/tests/components/trace-viewer.test.tsx`:
+
+```tsx
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { TraceTree } from "@/components/trace-viewer/trace-tree";
+import { TraceNode } from "@/components/trace-viewer/trace-node";
+import type { TraceEvent } from "@/lib/ws-client";
+
+const mockEvent: TraceEvent = {
+  type: "agent_start",
+  agent_name: "coder",
+  data: { task: "fix bug" },
+  duration_ms: 1200,
+  tokens_in: 100,
+  tokens_out: 50,
+  cost: 0.001,
+  created_at: "2026-01-01T00:00:00Z",
+};
+
+describe("TraceNode", () => {
+  it("renders event type badge", () => {
+    render(<TraceNode event={mockEvent} />);
+    expect(screen.getByText("agent_start")).toBeInTheDocument();
+  });
+
+  it("renders agent name", () => {
+    render(<TraceNode event={mockEvent} />);
+    expect(screen.getByText("coder")).toBeInTheDocument();
+  });
+
+  it("renders duration", () => {
+    render(<TraceNode event={mockEvent} />);
+    expect(screen.getByText("1200ms")).toBeInTheDocument();
+  });
+
+  it("renders token counts", () => {
+    render(<TraceNode event={mockEvent} />);
+    expect(screen.getByText("100 tok in")).toBeInTheDocument();
+    expect(screen.getByText("50 tok out")).toBeInTheDocument();
+  });
+});
+
+describe("TraceTree", () => {
+  it("shows waiting message when no events", () => {
+    render(<TraceTree events={[]} />);
+    expect(screen.getByText("Waiting for trace events...")).toBeInTheDocument();
+  });
+
+  it("renders events when provided", () => {
+    render(<TraceTree events={[mockEvent]} />);
+    expect(screen.getByText("agent_start")).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 3: Run trace-viewer tests to verify they pass**
+
+Run:
+```bash
+cd apps/web && bun run vitest run tests/components/trace-viewer.test.tsx
+```
+
+Expected: All PASS.
+
+- [ ] **Step 4: Write agent-console tests**
+
+Create `apps/web/tests/components/agent-console.test.tsx`:
+
+```tsx
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { AgentList } from "@/components/agent-console/agent-list";
+import type { AgentRun } from "@/lib/types";
+
+const mockRun: AgentRun = {
+  id: "550e8400-e29b-41d4-a716-446655440000",
+  task: "Fix the login bug",
+  task_type: "bugfix",
+  complexity: "moderate",
+  status: "completed",
+  total_tokens: 3200,
+  total_cost: 0.0012,
+  duration_ms: 18300,
+  created_at: "2026-01-01T00:00:00Z",
+  completed_at: "2026-01-01T00:00:18Z",
+};
+
+describe("AgentList", () => {
+  it("shows empty state when no runs", () => {
+    render(<AgentList runs={[]} />);
+    expect(screen.getByText(/No agent runs yet/)).toBeInTheDocument();
+  });
+
+  it("renders run task name", () => {
+    render(<AgentList runs={[mockRun]} />);
+    expect(screen.getByText("Fix the login bug")).toBeInTheDocument();
+  });
+
+  it("renders status badge", () => {
+    render(<AgentList runs={[mockRun]} />);
+    expect(screen.getByText("completed")).toBeInTheDocument();
+  });
+
+  it("renders token count", () => {
+    render(<AgentList runs={[mockRun]} />);
+    expect(screen.getByText(/3200 tokens/)).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 5: Run agent-console tests**
+
+Run:
+```bash
+cd apps/web && bun run vitest run tests/components/agent-console.test.tsx
+```
+
+Expected: All PASS.
+
+- [ ] **Step 6: Run all frontend tests**
+
+Run:
+```bash
+cd apps/web && bun run vitest run
+```
+
+Expected: All PASS.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/web/tests/ apps/web/vitest.config.ts
+git commit -m "test(web): add component tests for trace-viewer and agent-console
+
+Vitest + Testing Library tests for TraceNode, TraceTree (empty state,
+event rendering), AgentList (empty state, run details, status badges)."
+```
+
+---
+
 ## Summary
 
 | Task | Description | Key Deliverable |
@@ -4135,13 +4384,14 @@ OpenTelemetry SDK, FastAPI auto-instrumentation for all endpoints."
 | 2 | Python Backend Init | FastAPI + health endpoint + tests |
 | 3 | Database Models | SQLAlchemy models + Alembic migrations |
 | 4 | API Routes | Pydantic schemas + route stubs |
-| 5 | AI Gateway | LiteLLM router + PII scrubber + cost tracker |
-| 6 | Agent System | LangGraph state + graph + supervisor + agent stubs |
+| 5 | AI Gateway | LiteLLM router + PII scrubber + cost tracker + rate limiter |
+| 6 | Agent System | LangGraph state + graph with HITL + supervisor + agent stubs |
 | 7 | WebSocket | Real-time trace streaming |
 | 8 | RAG Pipeline | LlamaIndex indexer + chunkers + retriever |
-| 9 | Frontend Init | Next.js + Better Auth + shadcn/ui |
+| 9 | Frontend Init | Next.js + Better Auth + shadcn/ui + TanStack Query + shared types |
 | 10 | Dashboard | Layout + overview page |
 | 11 | Agent Console | Task form + run list |
 | 12 | Trace Viewer | LangSmith-style traces + HITL cards |
-| 13 | Dashboard Pages | RAG explorer + settings + admin + Drizzle |
+| 13 | Dashboard Pages | RAG explorer + knowledge graph + settings + admin + Drizzle |
 | 14 | Observability | structlog + OpenTelemetry |
+| 15 | Frontend Tests | Vitest component tests for trace-viewer + agent-console |
