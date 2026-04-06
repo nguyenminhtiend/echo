@@ -1,0 +1,62 @@
+[tools]
+python = "3.14"
+node = "24"
+bun = "latest"
+
+[env]
+DATABASE_URL = "postgresql://echo:echo@localhost:5432/echo"
+OLLAMA_BASE_URL = "http://localhost:11434"
+
+[tasks.dev]
+description = "Start all services for development"
+run = "docker compose up -d db && mise run dev:api & mise run dev:web"
+
+[tasks."dev:api"]
+description = "Start FastAPI backend"
+dir = "apps/api"
+run = "uv run fastapi dev src/main.py --port 8000"
+
+[tasks."dev:web"]
+description = "Start Next.js frontend"
+dir = "apps/web"
+run = "bun run dev"
+
+[tasks."db:migrate"]
+description = "Run Alembic migrations"
+dir = "apps/api"
+run = "uv run alembic upgrade head"
+
+[tasks."db:reset"]
+description = "Reset database"
+run = "docker compose down db -v && docker compose up -d db && sleep 2 && mise run db:migrate"
+
+[tasks.index]
+description = "Run RAG indexing pipeline on own codebase"
+dir = "apps/api"
+run = "uv run python -m src.rag.indexer"
+
+[tasks.lint]
+description = "Lint all code"
+run = """
+cd apps/api && uv run ruff check . && uv run pyright
+cd ../web && bun run biome check .
+"""
+
+[tasks.test]
+description = "Run all tests"
+run = """
+cd apps/api && uv run pytest
+cd ../web && bun run vitest run
+"""
+
+[tasks.format]
+description = "Format all code"
+run = """
+cd apps/api && uv run ruff format .
+cd ../web && bun run biome format . --write
+"""
+
+[tasks."test:e2e"]
+description = "Run Playwright E2E tests"
+dir = "apps/web"
+run = "bunx playwright test"

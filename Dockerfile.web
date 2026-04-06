@@ -1,0 +1,15 @@
+FROM oven/bun:latest
+
+WORKDIR /app
+
+# Copy dependency files
+COPY apps/web/package.json apps/web/bun.lock* ./
+
+# Install dependencies
+RUN bun install --frozen-lockfile 2>/dev/null || bun install
+
+# Copy source
+COPY apps/web/ ./
+
+EXPOSE 3000
+CMD ["bun", "run", "dev"]
