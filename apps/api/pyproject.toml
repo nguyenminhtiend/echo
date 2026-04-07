@@ -15,6 +15,7 @@ dependencies = [
     "greenlet>=3.3.2",
     "litellm>=1.83.0",
     "presidio-analyzer",
+    "langgraph~=1.1.0",
 ]
 
 [project.optional-dependencies]
