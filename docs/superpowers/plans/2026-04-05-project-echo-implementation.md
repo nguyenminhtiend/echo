@@ -1676,6 +1676,26 @@ All endpoints return mock/empty data until backend integration."
 - Create: `apps/api/tests/test_gateway/test_tracker.py`
 - Create: `apps/api/tests/test_gateway/test_rate_limiter.py`
 - Modify: `apps/api/pyproject.toml` (add litellm, presidio-analyzer)
+- Create: `apps/api/src/agents/__init__.py` (stub for Task 6)
+- Create: `apps/api/src/agents/state.py` (minimal stub — only `TaskComplexity` enum; Task 6 expands this file)
+
+> **Note:** `router.py` imports `TaskComplexity` from `src.agents.state`, which is fully defined in Task 6. To unblock Task 5, we create a minimal `src/agents/state.py` containing just the `TaskComplexity` enum. Task 6 will additively expand the same file (TaskType, EchoState, etc.) without removing this enum.
+
+- [ ] **Step 0: Create minimal agents.state stub for TaskComplexity**
+
+Create `apps/api/src/agents/__init__.py` (empty).
+
+Create `apps/api/src/agents/state.py`:
+
+```python
+from enum import Enum
+
+
+class TaskComplexity(Enum):
+    SIMPLE = "simple"
+    MODERATE = "moderate"
+    COMPLEX = "complex"
+```
 
 - [ ] **Step 1: Add gateway dependencies to pyproject.toml**
 
@@ -2170,9 +2190,9 @@ Expected: FAIL.
 
 - [ ] **Step 4: Implement agent state**
 
-Create `apps/api/src/agents/__init__.py` (empty).
+Create `apps/api/src/agents/__init__.py` (empty) if it doesn't already exist (Task 5 may have created it).
 
-Create `apps/api/src/agents/state.py`:
+Create or **overwrite** `apps/api/src/agents/state.py` (Task 5 created a minimal stub with only `TaskComplexity` — replace it with the full version below):
 
 ```python
 from enum import Enum

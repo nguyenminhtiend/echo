@@ -13,6 +13,8 @@ dependencies = [
     "structlog~=25.5.0",
     "websockets",
     "greenlet>=3.3.2",
+    "litellm>=1.83.0",
+    "presidio-analyzer",
 ]
 
 [project.optional-dependencies]
