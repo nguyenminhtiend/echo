@@ -9,7 +9,14 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/dist", "!**/node_modules", "!**/*.d.ts"]
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/node_modules",
+      "!**/*.d.ts",
+      "!**/src/components/ui/**",
+      "!**/src/app/globals.css"
+    ]
   },
   "assist": {
     "actions": {
