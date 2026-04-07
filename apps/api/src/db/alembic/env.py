@@ -6,12 +6,6 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.config import settings
 from src.models.base import Base
-from src.models.user import User, UserSession
-from src.models.agent_run import AgentRun
-from src.models.trace_event import TraceEvent
-from src.models.cost_ledger import CostLedger
-from src.models.audit_log import AuditLog
-from src.models.rag import RagChunk, GraphNode, GraphEdge
 
 config = context.config
 if config.config_file_name is not None:

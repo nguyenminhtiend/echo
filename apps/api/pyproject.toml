@@ -28,9 +28,50 @@ dev = [
 [tool.ruff]
 target-version = "py314"
 line-length = 100
+src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+select = [
+  "E", "W",     # pycodestyle
+  "F",           # pyflakes
+  "I",           # isort
+  "UP",          # pyupgrade
+  "B",           # bugbear
+  "SIM",         # simplify
+  "RUF",         # ruff-specific
+  "N",           # pep8-naming
+  "ASYNC",       # async best practices
+  "S",           # bandit (security)
+  "T20",         # print statements
+  "PTH",         # pathlib
+  "PERF",        # performance
+  "RET",         # return statements
+  "ARG",         # unused arguments
+  "FBT",         # boolean trap
+  "C4",          # comprehensions
+  "DTZ",         # datetime timezone
+  "PIE",         # misc lints
+  "TCH",         # type-checking imports
+  "TID",         # tidy imports
+]
+ignore = [
+  "S101",        # allow assert (used in tests)
+  "ARG001",      # unused function args (common in FastAPI deps)
+  "B008",        # function call in default arg (FastAPI Depends())
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "ARG", "FBT"]
+"src/models/**" = ["TCH003"]           # SQLAlchemy Mapped[] needs types at runtime
+"src/db/session.py" = ["TCH003"]       # async generator type used at runtime
+"src/db/alembic/versions/**" = ["E501", "TCH"]  # auto-generated migrations
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
 
 [tool.pyright]
 pythonVersion = "3.14"
