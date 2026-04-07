@@ -16,6 +16,11 @@ dependencies = [
     "litellm>=1.83.0",
     "presidio-analyzer",
     "langgraph~=1.1.0",
+    "llama-index-core~=0.14",
+    "llama-index-vector-stores-postgres",
+    "llama-index-embeddings-ollama",
+    "tree-sitter~=0.25.2",
+    "tree-sitter-python~=0.25.0",
 ]
 
 [project.optional-dependencies]
