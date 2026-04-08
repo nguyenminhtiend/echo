@@ -36,11 +36,13 @@ async def _mock_get_db():
     session.commit = AsyncMock()
     session.refresh = AsyncMock(side_effect=_refresh_like_db)
 
-    async def execute(_stmt):
+    async def execute(*_args, **_kwargs):
         r = MagicMock()
         r.scalar_one.return_value = 0
         r.scalar_one_or_none.return_value = None
         r.scalars.return_value.all.return_value = []
+        r.all.return_value = []
+        r.mappings.return_value = iter([])
         r.one.return_value = (0, 0, 0)
         return r
 

@@ -22,19 +22,42 @@ def test_chunker_splits_by_function():
 
 
 async def test_rag_chunk_roundtrip(session: AsyncSession):
-    row = RagChunk(
-        content="def add(a, b): return a + b",
-        chunk_type="function",
-        file_path=str(FIXTURE),
-        start_line=1,
-        end_line=1,
-    )
-    session.add(row)
+    # embedding is NOT NULL and not mapped on the ORM model; insert via SQL.
+    zeros = "[" + ",".join(["0"] * 768) + "]"
+    rid = (
+        await session.execute(
+            text(
+                """
+                INSERT INTO rag_chunks (
+                    id, content, embedding, chunk_type, file_path, start_line, end_line, metadata
+                )
+                VALUES (
+                    gen_random_uuid(),
+                    :content,
+                    CAST(:emb AS vector),
+                    :chunk_type,
+                    :file_path,
+                    :start_line,
+                    :end_line,
+                    NULL
+                )
+                RETURNING id
+                """
+            ),
+            {
+                "content": "def add(a, b): return a + b",
+                "emb": zeros,
+                "chunk_type": "function",
+                "file_path": str(FIXTURE),
+                "start_line": 1,
+                "end_line": 1,
+            },
+        )
+    ).scalar_one()
+
     await session.commit()
 
-    got = (
-        await session.execute(select(RagChunk).where(RagChunk.id == row.id))
-    ).scalar_one()
+    got = (await session.execute(select(RagChunk).where(RagChunk.id == rid))).scalar_one()
     assert got.file_path == str(FIXTURE)
     assert got.chunk_type == "function"
 
