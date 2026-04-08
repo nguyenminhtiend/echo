@@ -8,6 +8,7 @@ os.environ.setdefault("ECHO_LLM_MODEL", "gemma4:8b")
 os.environ.setdefault("ECHO_EMBED_MODEL", "nomic-embed-text")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests")
 os.environ["ECHO_SKIP_AGENT_RUNNER"] = "1"
+os.environ.setdefault("ECHO_DRY_RUN", "1")
 
 from unittest.mock import AsyncMock, MagicMock
 

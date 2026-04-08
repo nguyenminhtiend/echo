@@ -12,9 +12,7 @@ class RateLimiter:
     def _prune(self, user_id: str) -> None:
         """Remove entries older than 60 seconds."""
         cutoff = time.monotonic() - 60.0
-        self._usage[user_id] = [
-            (ts, tokens) for ts, tokens in self._usage[user_id] if ts > cutoff
-        ]
+        self._usage[user_id] = [(ts, tokens) for ts, tokens in self._usage[user_id] if ts > cutoff]
 
     def _current_usage(self, user_id: str) -> int:
         self._prune(user_id)

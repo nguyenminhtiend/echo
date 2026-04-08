@@ -1,3 +1,7 @@
+import uuid
+
+import pytest
+
 from src.gateway.tracker import CostTracker, LLMUsage
 
 
@@ -27,3 +31,30 @@ def test_total_tokens():
     tracker = CostTracker()
     tracker.record(LLMUsage(model="m1", tokens_in=100, tokens_out=50, cost=0.0))
     assert tracker.total_tokens == 150
+
+
+@pytest.mark.asyncio
+async def test_flush_writes_rows_and_clears():
+    from unittest.mock import MagicMock
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    tracker = CostTracker()
+    rid = uuid.uuid4()
+    uid = uuid.uuid4()
+    tracker.record(
+        LLMUsage(
+            model="ollama/gemma4:8b",
+            tokens_in=10,
+            tokens_out=5,
+            cost=0.0,
+            user_id=str(uid),
+            run_id=str(rid),
+        )
+    )
+    session = MagicMock(spec=AsyncSession)
+    session.add = MagicMock()
+    n = await tracker.flush(session, user_id=uid, run_id=rid)
+    assert n == 1
+    assert tracker.entries == []
+    session.add.assert_called_once()

@@ -5,7 +5,15 @@ _TASK_KEYWORDS: dict[TaskType, set[str]] = {
     TaskType.FEATURE: {"add", "new", "feature", "implement", "create", "build"},
     TaskType.REVIEW: {"review", "pr", "pull request", "check", "audit"},
     TaskType.TEST: {"test", "tests", "coverage", "spec", "unittest", "pytest"},
-    TaskType.SECURITY: {"security", "vulnerability", "vulnerabilities", "owasp", "secret", "cve", "scan"},
+    TaskType.SECURITY: {
+        "security",
+        "vulnerability",
+        "vulnerabilities",
+        "owasp",
+        "secret",
+        "cve",
+        "scan",
+    },
     TaskType.DOCS: {"doc", "documentation", "readme", "changelog", "comment"},
     TaskType.ARCHITECTURE: {"architecture", "design", "refactor", "migrate", "dependency"},
 }

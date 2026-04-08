@@ -10,16 +10,17 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import structlog
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from sqlalchemy import select
 
 from src.agents.graph import build_graph
-from src.agents.state import EchoState, TaskComplexity, TaskType
+from src.agents.state import EchoState, TaskComplexity
 from src.agents.supervisor import classify_task
 from src.db.session import async_session
+from src.gateway.tracker import get_cost_tracker, reset_cost_tracker
 from src.models.agent_run import AgentRun
 from src.models.audit_log import AuditLog
-from src.models.cost_ledger import CostLedger
 from src.models.trace_event import TraceEvent
 
 log = structlog.get_logger()
@@ -82,27 +83,6 @@ async def _persist_trace(
     return te
 
 
-async def _persist_cost(
-    db_session,
-    *,
-    run_id: uuid.UUID,
-    model: str,
-    tokens_in: int,
-    tokens_out: int,
-    cost: Decimal,
-) -> None:
-    db_session.add(
-        CostLedger(
-            id=uuid.uuid4(),
-            run_id=run_id,
-            model=model,
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
-            cost=cost,
-        )
-    )
-
-
 async def _persist_audit(
     db_session,
     *,
@@ -122,9 +102,9 @@ async def _persist_audit(
 
 class AgentRunner:
     @staticmethod
-    async def execute(run_id: uuid.UUID) -> None:  # noqa: C901
+    async def execute(run_id: uuid.UUID) -> None:
         rid = str(run_id)
-        trace_q, hitl_q = ensure_queues(rid)
+        _trace_q, hitl_q = ensure_queues(rid)
         start = time.perf_counter()
         total_tokens_in = 0
         total_tokens_out = 0
@@ -134,6 +114,7 @@ class AgentRunner:
             async with async_session() as db:
                 run = (await db.execute(select(AgentRun).where(AgentRun.id == run_id))).scalar_one()
 
+                reset_cost_tracker()
                 run.status = "running"
                 await db.commit()
 
@@ -155,7 +136,10 @@ class AgentRunner:
 
                 checkpointer = MemorySaver()
                 graph = build_graph(checkpointer=checkpointer)
-                config = {"configurable": {"thread_id": rid}}
+                uid = str(run.user_id) if run.user_id is not None else "anonymous"
+                config: RunnableConfig = {
+                    "configurable": {"thread_id": rid, "user_id": uid, "run_id": rid}
+                }
 
                 async for chunk in graph.astream(initial_state, config=config):
                     for node_name, node_output in chunk.items():
@@ -178,7 +162,7 @@ class AgentRunner:
 
                             try:
                                 hitl_resp = await asyncio.wait_for(hitl_q.get(), timeout=300)
-                            except asyncio.TimeoutError:
+                            except TimeoutError:
                                 hitl_resp = {"action": "approve"}
 
                             await _emit(rid, {"type": "hitl_response", "data": hitl_resp})
@@ -201,6 +185,7 @@ class AgentRunner:
                         total_cost += c
 
                 elapsed_ms = int((time.perf_counter() - start) * 1000)
+                await get_cost_tracker().flush(db, user_id=run.user_id, run_id=run_id)
                 run.status = "completed"
                 run.total_tokens = total_tokens_in + total_tokens_out
                 run.total_cost = total_cost
@@ -286,15 +271,10 @@ async def _process_node_output(
 
         if event_type == "llm_end" and e_tok_in + e_tok_out > 0:
             model = data.get("model", "ollama/gemma4:8b")
-            await _persist_cost(
-                db,
-                run_id=run_id,
-                model=model,
-                tokens_in=e_tok_in,
-                tokens_out=e_tok_out,
-                cost=e_cost,
+            input_hash = (
+                data.get("input_hash")
+                or hashlib.sha256(str(data.get("input", "")).encode()).hexdigest()[:16]
             )
-            input_hash = hashlib.sha256(str(data.get("input", "")).encode()).hexdigest()[:16]
             await _persist_audit(
                 db,
                 action="llm_call",

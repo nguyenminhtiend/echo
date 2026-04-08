@@ -17,6 +17,7 @@ dependencies = [
     "websockets",
     "greenlet>=3.3.2",
     "litellm>=1.83.0",
+    "langchain-core>=0.3.0",
     "presidio-analyzer",
     "langgraph~=1.1.0",
     "llama-index-core~=0.14",
@@ -80,6 +81,15 @@ ignore = [
 "src/models/**" = ["TCH003"]           # SQLAlchemy Mapped[] needs types at runtime
 "src/db/session.py" = ["TCH003"]       # async generator type used at runtime
 "src/db/alembic/versions/**" = ["E501", "TCH"]  # auto-generated migrations
+"src/agents/coder.py" = ["TC001", "TC002"]
+"src/agents/reviewer.py" = ["TC001", "TC002"]
+"src/agents/qa.py" = ["TC001", "TC002"]
+"src/agents/security.py" = ["TC001", "TC002"]
+"src/agents/docs_agent.py" = ["TC001", "TC002"]
+"src/agents/architect.py" = ["TC001", "TC002"]
+"src/agents/tools.py" = ["TC001", "TC002"]
+"src/gateway/tracker.py" = ["TC002"]
+"src/agents/runner.py" = ["TC002"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

@@ -3,11 +3,6 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from collections.abc import Generator
-    from contextlib import contextmanager
 
 
 class NodeTimer:
@@ -18,7 +13,7 @@ class NodeTimer:
         self.start: float = 0
         self.elapsed_ms: int = 0
 
-    def __enter__(self) -> "NodeTimer":
+    def __enter__(self) -> NodeTimer:
         self.start = time.perf_counter()
         return self
 

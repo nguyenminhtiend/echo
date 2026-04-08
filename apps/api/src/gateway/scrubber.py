@@ -6,13 +6,13 @@ _analyzer = AnalyzerEngine()
 
 # Regex patterns for secrets
 _SECRET_PATTERNS = [
-    re.compile(r"AKIA[0-9A-Z]{16}"),                          # AWS access key
+    re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS access key
     re.compile(r"(?:aws.{0,20})?['\"][0-9a-zA-Z/+]{40}['\"]"),  # AWS secret key
     re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),  # JWT
-    re.compile(r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----"),   # Private keys
-    re.compile(r"ghp_[0-9a-zA-Z]{36}"),                       # GitHub PAT
-    re.compile(r"sk-[0-9a-zA-Z]{48}"),                        # OpenAI API key
-    re.compile(r"sk-ant-[0-9a-zA-Z-]{90,}"),                  # Anthropic API key
+    re.compile(r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----"),  # Private keys
+    re.compile(r"ghp_[0-9a-zA-Z]{36}"),  # GitHub PAT
+    re.compile(r"sk-[0-9a-zA-Z]{48}"),  # OpenAI API key
+    re.compile(r"sk-ant-[0-9a-zA-Z-]{90,}"),  # Anthropic API key
 ]
 
 
