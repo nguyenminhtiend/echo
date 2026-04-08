@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +11,7 @@ from src.api.agents import router as agents_router
 from src.api.rag import router as rag_router
 from src.api.traces import router as traces_router
 from src.api.ws import router as ws_router
+from src.db.session import engine, get_db  # noqa: F401
 
 # Configure structlog
 structlog.configure(
@@ -25,7 +28,14 @@ structlog.configure(
 provider = TracerProvider()
 trace.set_tracer_provider(provider)
 
-app = FastAPI(title="E.C.H.O. API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(title="E.C.H.O. API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

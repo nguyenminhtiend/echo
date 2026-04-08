@@ -28,3 +28,9 @@ class AgentRunResponse(BaseModel):
 class AgentRunList(BaseModel):
     runs: list[AgentRunResponse]
     total: int
+
+
+class AgentStatsResponse(BaseModel):
+    total_runs: int
+    total_tokens: int
+    total_cost: Decimal

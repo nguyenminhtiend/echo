@@ -74,6 +74,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "ARG", "FBT"]
+"src/api/agents.py" = ["TC002"]  # AsyncSession used in Depends() runtime annotations
+"src/api/traces.py" = ["TC002", "TC003"]
+"src/schemas/agent.py" = ["TC003"]  # Pydantic field types need runtime imports
 "src/models/**" = ["TCH003"]           # SQLAlchemy Mapped[] needs types at runtime
 "src/db/session.py" = ["TCH003"]       # async generator type used at runtime
 "src/db/alembic/versions/**" = ["E501", "TCH"]  # auto-generated migrations
