@@ -1,3 +1,4 @@
+import operator
 from enum import Enum
 from typing import Annotated, TypedDict
 
@@ -49,7 +50,7 @@ class EchoState(TypedDict):
     messages: Annotated[list, add_messages]
     artifacts: list[CodeArtifact]
     reviews: list[ReviewFinding]
-    trace: list[TraceEntry]
+    trace: Annotated[list[TraceEntry], operator.add]
     current_agent: str
     iteration: int
     max_iterations: int

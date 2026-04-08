@@ -1,3 +1,5 @@
+import asyncio
+import os
 import uuid
 from decimal import Decimal
 
@@ -5,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.agents.runner import AgentRunner
 from src.agents.supervisor import classify_task
 from src.db.session import get_db
 from src.models.agent_run import AgentRun
@@ -31,6 +34,10 @@ async def create_run(body: AgentRunCreate, db: AsyncSession = Depends(get_db)):
     db.add(run)
     await db.commit()
     await db.refresh(run)
+
+    if not os.environ.get("ECHO_SKIP_AGENT_RUNNER"):
+        asyncio.create_task(AgentRunner.execute(run.id))
+
     return AgentRunResponse.model_validate(run)
 
 

@@ -1,15 +1,18 @@
+from src.agents.node_tracing import (
+    NodeTimer,
+    agent_end_entry,
+    agent_start_entry,
+    llm_end_entry,
+    llm_start_entry,
+)
 from src.agents.state import EchoState
 
 
 def coder_node(state: EchoState) -> dict:
-    """LangGraph node: code generation agent (stub)."""
-    return {
-        "current_agent": "coder",
-        "trace": [
-            {
-                "agent": "coder",
-                "event_type": "agent_start",
-                "data": {"task": state["task"]},
-            }
-        ],
-    }
+    """LangGraph node: code generation agent (stub — real LLM calls in Task 18)."""
+    with NodeTimer("coder") as timer:
+        trace = [agent_start_entry("coder", {"task": state["task"]})]
+        trace.append(llm_start_entry("coder", {"prompt": "generate code"}))
+        trace.append(llm_end_entry("coder", tokens_in=0, tokens_out=0))
+        trace.append(agent_end_entry("coder", timer.elapsed_ms))
+    return {"current_agent": "coder", "trace": trace}

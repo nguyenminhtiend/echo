@@ -1,3 +1,4 @@
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
 from src.agents.architect import architect_node
@@ -15,13 +16,16 @@ def _route_from_supervisor(state: EchoState) -> str:
     return state["current_agent"]
 
 
-def build_graph():
+def build_graph(checkpointer=None):
     """Build and compile the E.C.H.O. multi-agent LangGraph.
 
     Flow: Supervisor -> Coder -> [HITL] -> Reviewer -> QA -> Security -> [HITL] -> Docs -> END
     For non-code tasks (review, security, docs, architect), Supervisor routes directly
     to the relevant agent which then goes to END.
     """
+    if checkpointer is None:
+        checkpointer = MemorySaver()
+
     builder = StateGraph(EchoState)
 
     builder.add_node("supervisor", supervisor_node)
@@ -55,4 +59,4 @@ def build_graph():
 
     builder.add_edge("architect", END)
 
-    return builder.compile(interrupt_after=["coder", "security"])
+    return builder.compile(checkpointer=checkpointer, interrupt_after=["coder", "security"])
