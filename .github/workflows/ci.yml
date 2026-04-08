@@ -1,0 +1,59 @@
+name: ci
+on:
+  push: { branches: [master] }
+  pull_request:
+
+jobs:
+  unit-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.14" }
+      - run: pip install uv
+      - run: cd apps/api && uv sync --extra dev
+      - run: cd apps/api && uv run ruff check .
+      - run: cd apps/api && uv run pyright
+      - run: cd apps/api && uv run pytest -v -m "not integration and not ollama"
+
+  unit-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: cd apps/web && bun install
+      - run: cd apps/web && bunx biome check .
+      - run: cd apps/web && bunx vitest run
+
+  integration-api:
+    runs-on: ubuntu-latest
+    needs: unit-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.14" }
+      - run: pip install uv
+      - run: cd apps/api && uv sync --extra dev
+      - run: cd apps/api && uv run pytest -m integration -v
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [unit-api, unit-web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.14" }
+      - uses: oven-sh/setup-bun@v2
+      - run: pip install uv
+      - run: cd apps/api && uv sync --extra dev
+      - run: cd apps/web && bun install
+      - run: cd apps/web && bunx playwright install --with-deps chromium
+      - run: ./scripts/e2e-up.sh
+      - run: cd apps/web && bun run test:e2e
+      - if: always()
+        run: ./scripts/e2e-down.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report

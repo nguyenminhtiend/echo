@@ -1,0 +1,15 @@
+name: nightly-ollama
+on:
+  schedule: [{ cron: "0 6 * * *" }]
+  workflow_dispatch:
+
+jobs:
+  ollama-smoke:
+    runs-on: self-hosted  # needs a runner with ollama installed
+    steps:
+      - uses: actions/checkout@v4
+      - run: ollama pull gemma4:8b
+      - run: ollama pull nomic-embed-text
+      - run: pip install uv && cd apps/api && uv sync --extra dev
+      - env: { RUN_OLLAMA_TESTS: "1" }
+        run: cd apps/api && uv run pytest -m ollama -v
