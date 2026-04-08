@@ -1,5 +1,6 @@
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
@@ -25,6 +26,14 @@ provider = TracerProvider()
 trace.set_tracer_provider(provider)
 
 app = FastAPI(title="E.C.H.O. API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Instrument FastAPI
 FastAPIInstrumentor.instrument_app(app)
