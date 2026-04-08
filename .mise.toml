@@ -48,7 +48,7 @@ cd ../web && bun run biome check .
 [tasks.test]
 description = "Run all tests"
 run = """
-cd apps/api && uv run pytest
+cd apps/api && uv run pytest -m "not integration and not ollama"
 cd ../web && bun run vitest run
 """
 
@@ -59,7 +59,18 @@ cd apps/api && uv run ruff format .
 cd ../web && bun run biome format . --write
 """
 
+[tasks."test:integration"]
+description = "Backend integration tests (needs docker)"
+run = "cd apps/api && uv run pytest -m integration -v"
+
 [tasks."test:e2e"]
-description = "Run Playwright E2E tests"
-dir = "apps/web"
-run = "bunx playwright test"
+description = "Full-stack Playwright E2E"
+run = [
+  "./scripts/e2e-up.sh",
+  "cd apps/web && bun run test:e2e",
+  "./scripts/e2e-down.sh",
+]
+
+[tasks."test:ollama"]
+description = "Ollama-gated smoke tests"
+run = "cd apps/api && RUN_OLLAMA_TESTS=1 uv run pytest -m ollama -v"

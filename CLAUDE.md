@@ -88,7 +88,9 @@ mise run index            # Run RAG indexing pipeline on own codebase
 mise run lint             # Lint all code (ruff + pyright + biome)
 mise run test             # Run all tests (pytest + vitest)
 mise run format           # Format all code (ruff + biome)
-mise run test:e2e         # Run Playwright E2E tests
+mise run test:integration # Backend integration tests (docker required)
+mise run test:e2e         # Full-stack Playwright E2E
+mise run test:ollama      # Ollama-gated smoke tests (requires local ollama)
 ```
 
 ## Security Notes
