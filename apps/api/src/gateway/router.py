@@ -1,4 +1,4 @@
-from litellm import Router
+from litellm.router import Router
 
 from src.agents.state import TaskComplexity
 from src.config import settings

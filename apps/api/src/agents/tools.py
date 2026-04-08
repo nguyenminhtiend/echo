@@ -63,8 +63,11 @@ def read_file_tool(path: str) -> str:
 
 async def rag_query_tool(query: str, top_k: int = 5) -> list[dict[str, Any]]:
     """Query the RAG index (vector / graph retrieval)."""
-    retriever = RAGRetriever()
-    return await retriever.query(query_text=query, top_k=top_k)
+    from src.db.session import async_session
+
+    async with async_session() as session:
+        retriever = RAGRetriever(session)
+        return await retriever.query(query_text=query, top_k=top_k)
 
 
 def write_artifact_tool(file_path: str, content: str, action: str) -> CodeArtifact:

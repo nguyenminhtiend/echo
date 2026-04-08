@@ -36,7 +36,7 @@ async def create_run(body: AgentRunCreate, db: AsyncSession = Depends(get_db)):
     await db.refresh(run)
 
     if not os.environ.get("ECHO_SKIP_AGENT_RUNNER"):
-        asyncio.create_task(AgentRunner.execute(run.id))
+        _bg = asyncio.create_task(AgentRunner.execute(run.id))  # noqa: RUF006
 
     return AgentRunResponse.model_validate(run)
 

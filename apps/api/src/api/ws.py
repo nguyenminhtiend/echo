@@ -1,17 +1,20 @@
 import asyncio
+import contextlib
 
+import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-from src.agents.runner import ensure_queues, get_hitl_queue, get_trace_queue
+from src.agents.runner import ensure_queues, get_hitl_queue
 
 router = APIRouter()
+log = structlog.get_logger()
 
 
 @router.websocket("/ws/{run_id}")
 async def agent_trace_ws(websocket: WebSocket, run_id: str):
     await websocket.accept()
-    trace_q, hitl_q = ensure_queues(run_id)
+    trace_q, _hitl_q = ensure_queues(run_id)
 
     async def _push_events():
         try:
@@ -23,7 +26,7 @@ async def agent_trace_ws(websocket: WebSocket, run_id: str):
                 if event.get("type") == "stream_end":
                     break
         except Exception:
-            pass
+            log.debug("ws_push_events_ended", run_id=run_id)
 
     async def _receive_hitl():
         try:
@@ -34,7 +37,7 @@ async def agent_trace_ws(websocket: WebSocket, run_id: str):
                     if hq is not None:
                         await hq.put(data)
         except WebSocketDisconnect, Exception:
-            pass
+            log.debug("ws_receive_ended", run_id=run_id)
 
     push_task = asyncio.create_task(_push_events())
     recv_task = asyncio.create_task(_receive_hitl())
@@ -43,7 +46,5 @@ async def agent_trace_ws(websocket: WebSocket, run_id: str):
         await push_task
     finally:
         recv_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await recv_task
-        except asyncio.CancelledError:
-            pass
