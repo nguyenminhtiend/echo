@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test';
 
+const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
+
 const email = `runner+${Date.now()}@example.com`;
 const password = 'Password123!';
 
 test.beforeEach(async ({ page, request }) => {
-  await request.post('http://localhost:8000/auth/register', {
+  await request.post(`${baseURL}/api/auth/sign-up/email`, {
     data: { email, password, name: 'Runner' },
   });
   await page.goto('/login');
@@ -19,12 +21,12 @@ test('submit agent task -> run appears -> trace viewer opens', async ({ page }) 
   await page.getByLabel(/task/i).fill('Write a hello world function');
   await page.getByRole('button', { name: /submit|run|start/i }).click();
 
-  const runRow = page
-    .getByRole('row')
+  const runLink = page
+    .locator('a')
     .filter({ hasText: /hello world/i })
     .first();
-  await expect(runRow).toBeVisible({ timeout: 15_000 });
+  await expect(runLink).toBeVisible({ timeout: 15_000 });
 
-  await runRow.click();
+  await runLink.click();
   await expect(page.getByText(/trace|supervisor|coder/i).first()).toBeVisible({ timeout: 15_000 });
 });
