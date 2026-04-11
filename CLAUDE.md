@@ -5,10 +5,8 @@
 Self-hosted, multi-agent AI platform that orchestrates specialized AI agents across the entire SDLC. Agents autonomously generate code, review PRs, write tests, scan for security vulnerabilities, produce documentation, and analyze architecture.
 
 **Core Principles:**
-- Local-first: Runs entirely on developer machines via Ollama
-- Privacy by default: Gemma 4 8B — code never leaves the machine
+- Provider-agnostic LiteLLM gateway: chat via OpenRouter (Claude Sonnet 4.5), embeddings via local Ollama (nomic-embed-text)
 - Enterprise-grade patterns: Multi-agent orchestration, Graph RAG, AI gateway, PII scrubbing, audit logging, OTEL tracing
-- Provider-agnostic: LiteLLM abstraction layer ready for any provider
 
 ## Tech Stack
 
@@ -34,7 +32,7 @@ Self-hosted, multi-agent AI platform that orchestrates specialized AI agents acr
 
 ### Infrastructure
 - **Database:** PostgreSQL 18.3 + pgvector 0.8.2
-- **LLM:** Ollama — gemma4:8b (reasoning) + nomic-embed-text (embeddings, 768 dim)
+- **LLM:** OpenRouter (chat: anthropic/claude-sonnet-4.5) + Ollama (embeddings only: nomic-embed-text, 768 dim)
 - **Containers:** Docker Compose (3 services: db, api, web)
 - **Version Manager:** mise (Python, Node, Bun)
 
@@ -49,7 +47,8 @@ Next.js 16.2 (Bun) → FastAPI (Python 3.14) → PostgreSQL 18.3 + pgvector
                             ↓
                     LlamaIndex Graph RAG (PropertyGraphIndex → pgvector + pg relations)
                             ↓
-                    Ollama (localhost:11434) — gemma4:8b + nomic-embed-text
+                    OpenRouter API (chat: anthropic/claude-sonnet-4.5)
+                    Ollama (embeddings only: nomic-embed-text, localhost:11434)
 ```
 
 ## Coding Conventions

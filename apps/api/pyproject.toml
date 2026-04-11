@@ -107,5 +107,5 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
   "integration: requires docker (real postgres via testcontainers)",
-  "ollama: requires local ollama server with gemma4:8b + nomic-embed-text",
+  "ollama: requires local ollama server with nomic-embed-text for embeddings",
 ]

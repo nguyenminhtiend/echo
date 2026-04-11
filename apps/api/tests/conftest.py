@@ -3,9 +3,10 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost:5432/echo_test")
+os.environ.setdefault("OPENROUTER_API_KEY", "sk-or-test-key-not-real")
+os.environ.setdefault("ECHO_LLM_MODEL", "openrouter/free")
 os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434")
-os.environ.setdefault("ECHO_LLM_MODEL", "gemma4:8b")
-os.environ.setdefault("ECHO_EMBED_MODEL", "nomic-embed-text")
+os.environ.setdefault("ECHO_EMBED_MODEL", "nomic-embed-text:latest")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests")
 os.environ["ECHO_SKIP_AGENT_RUNNER"] = "1"
 os.environ.setdefault("ECHO_DRY_RUN", "1")

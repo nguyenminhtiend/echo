@@ -17,6 +17,7 @@ from sqlalchemy import select
 from src.agents.graph import build_graph
 from src.agents.state import EchoState, TaskComplexity
 from src.agents.supervisor import classify_task
+from src.config import settings
 from src.db.session import async_session
 from src.gateway.tracker import get_cost_tracker, reset_cost_tracker
 from src.models.agent_run import AgentRun
@@ -270,7 +271,7 @@ async def _process_node_output(
         await _emit(rid, ws_event)
 
         if event_type == "llm_end" and e_tok_in + e_tok_out > 0:
-            model = data.get("model", "ollama/gemma4:8b")
+            model = data.get("model", settings.echo_llm_model)
             input_hash = (
                 data.get("input_hash")
                 or hashlib.sha256(str(data.get("input", "")).encode()).hexdigest()[:16]

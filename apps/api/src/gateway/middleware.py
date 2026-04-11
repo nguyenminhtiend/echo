@@ -20,12 +20,6 @@ log = structlog.get_logger()
 _rate_limiter = RateLimiter()
 
 
-def _normalize_ollama_model(model: str) -> str:
-    if model.startswith("ollama/"):
-        return model
-    return f"ollama/{model}"
-
-
 def _estimate_tokens(text: str) -> int:
     return max(128, len(text) // 4)
 
@@ -100,18 +94,22 @@ async def gateway_llm_call(
             tokens_in=0,
             tokens_out=0,
             cost=0.0,
-            model=_normalize_ollama_model(settings.echo_llm_model),
+            model=settings.echo_llm_model,
             error="rate_limited",
             input_hash=input_hash,
         )
 
-    model = _normalize_ollama_model(settings.echo_llm_model)
+    model = settings.echo_llm_model
     t0 = time.perf_counter()
     try:
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": scrubbed,
-            "api_base": settings.ollama_base_url,
+            "api_key": settings.openrouter_api_key.get_secret_value(),
+            "extra_headers": {
+                "HTTP-Referer": "https://github.com/echo-platform/echo",
+                "X-Title": settings.echo_llm_app_name,
+            },
             "temperature": temperature,
         }
         if max_tokens is not None:
@@ -122,7 +120,11 @@ async def gateway_llm_call(
         tokens_in, tokens_out = _usage_from_response(resp)
         duration_ms = int((time.perf_counter() - t0) * 1000)
 
-        cost = 0.0
+        cost = float(
+            getattr(resp, "_hidden_params", {}).get("response_cost")
+            or litellm.completion_cost(completion_response=resp)
+            or 0.0
+        )
         get_cost_tracker().record(
             LLMUsage(
                 model=model,
@@ -162,7 +164,7 @@ async def gateway_llm_call(
         return GatewayLLMResult(
             content=(
                 "[LLM unavailable] The model could not be reached. "
-                "Check Ollama or set ECHO_DRY_RUN=1 for stub output."
+                "Check OPENROUTER_API_KEY and network connectivity, or set ECHO_DRY_RUN=1."
             ),
             tokens_in=0,
             tokens_out=0,

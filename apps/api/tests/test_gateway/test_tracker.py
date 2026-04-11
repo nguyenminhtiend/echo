@@ -8,7 +8,7 @@ from src.gateway.tracker import CostTracker, LLMUsage
 def test_track_usage():
     tracker = CostTracker()
     usage = LLMUsage(
-        model="ollama/gemma4:8b",
+        model="openrouter/free",
         tokens_in=100,
         tokens_out=50,
         cost=0.0,
@@ -17,7 +17,7 @@ def test_track_usage():
     )
     tracker.record(usage)
     assert len(tracker.entries) == 1
-    assert tracker.entries[0].model == "ollama/gemma4:8b"
+    assert tracker.entries[0].model == "openrouter/free"
 
 
 def test_total_cost():
@@ -44,7 +44,7 @@ async def test_flush_writes_rows_and_clears():
     uid = uuid.uuid4()
     tracker.record(
         LLMUsage(
-            model="ollama/gemma4:8b",
+            model="openrouter/free",
             tokens_in=10,
             tokens_out=5,
             cost=0.0,

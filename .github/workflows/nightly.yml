@@ -8,7 +8,6 @@ jobs:
     runs-on: self-hosted  # needs a runner with ollama installed
     steps:
       - uses: actions/checkout@v4
-      - run: ollama pull gemma4:8b
       - run: ollama pull nomic-embed-text
       - run: pip install uv && cd apps/api && uv sync --extra dev
       - env: { RUN_OLLAMA_TESTS: "1" }

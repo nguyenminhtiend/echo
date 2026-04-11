@@ -2,7 +2,7 @@
 
 Local manual testing procedures for verifying the current state of the E.C.H.O. platform.
 
-**Last updated:** 2026-04-08
+**Last updated:** 2026-04-11 (post Phase 2: API ↔ DB wiring, LangGraph runner, WebSocket streaming, gateway middleware, RAG pgvector)
 
 ---
 
@@ -55,6 +55,14 @@ POSTGRES_DB=echo
 
 > **Note:** The `docker-compose.yml` defaults to `echo:echo` credentials via `${POSTGRES_USER:-echo}`. Your `.env` overrides this to `admin:123456`. Make sure `.env` is loaded or the compose defaults match your `DATABASE_URL`.
 
+### Optional Env Flags (new in Phase 2)
+
+| Var | Purpose |
+|-----|---------|
+| `ECHO_DRY_RUN=1` | Agents and RAG indexer skip real LLM / embedding calls and emit stub artifacts. Use for fast smoke tests without Ollama. |
+| `ECHO_SKIP_AGENT_RUNNER=1` | `POST /api/agents/runs` persists the run but does NOT spawn the background `AgentRunner` task. Used by unit/integration tests so DB assertions aren't racy. |
+| `CODEBASE_ROOT=/path/to/repo` | Root directory the agent `read_file` tool and indexer scan. Defaults to cwd. |
+
 ---
 
 ## 1. Infrastructure Tests
@@ -84,6 +92,7 @@ docker compose exec db psql -U admin -d echo -c "CREATE EXTENSION IF NOT EXISTS 
 mise run db:migrate
 # Expected: "Running upgrade -> head" with no errors
 # or "INFO  [alembic.runtime.migration] Running upgrade  -> 05df721e935b, initial schema"
+# or if already up-to-date: "INFO  [alembic.runtime.migration] Will assume transactional DDL."
 ```
 
 Verify tables:
@@ -132,14 +141,14 @@ uv run pytest -m "not integration and not ollama" -v
 - `test_models.py` — SQLAlchemy model table names, columns, indexes
 - `test_gateway/test_scrubber.py` — PII detection (email, phone, AWS keys, JWT)
 - `test_gateway/test_router.py` — task complexity classification
-- `test_gateway/test_tracker.py` — cost tracking
+- `test_gateway/test_tracker.py` — cost tracking + `CostTracker.flush()` persists to `cost_ledger`
 - `test_gateway/test_rate_limiter.py` — rate limiting logic
 - `test_agents/test_state.py` — EchoState TypedDict shape
 - `test_agents/test_graph.py` — LangGraph compilation, all nodes present
 - `test_agents/test_supervisor.py` — task type classification (bugfix, feature, review, etc.)
-- `test_api/test_agents_api.py` — create/list agent runs (stub responses)
-- `test_api/test_traces_api.py` — trace 404 for unknown run
-- `test_api/test_rag_api.py` — RAG query returns empty results
+- `test_api/test_agents_api.py` — create/list/get agent runs + stats (DB-backed via in-memory SQLite; `ECHO_SKIP_AGENT_RUNNER=1` in conftest)
+- `test_api/test_traces_api.py` — trace 404 for unknown run, 200 for existing
+- `test_api/test_rag_api.py` — RAG query happy path with mocked retriever
 
 ### 2.3 Integration Tests (requires Docker)
 
@@ -150,8 +159,8 @@ uv run pytest -m integration -v
 
 **Expected:** All pass. These use testcontainers to spin up a real Postgres with pgvector. Tests:
 - `test_health_db.py` — /health with real DB, pgvector extension present, all tables created
-- `test_rag_flow.py` — chunker splits fixture file, RagChunk insert/select, vector column type verification
-- `test_agents_flow.py` — POST creates run (stub), trace returns 404 (expected with current stubs)
+- `test_rag_flow.py` — chunker splits fixture file, `write_chunks_to_db` writes embeddings, retriever returns ordered results via `<=>` cosine distance
+- `test_agents_flow.py` — POST creates and persists run, `AgentRunner` executes graph (under `ECHO_DRY_RUN=1`), trace events and cost_ledger rows written, WebSocket receives `run_start` → `run_complete`
 
 ### 2.4 Ollama Smoke Tests (requires running Ollama)
 
@@ -180,41 +189,71 @@ Test endpoints:
 curl http://localhost:8000/health
 # Expected: {"status":"ok","version":"0.1.0"}
 
-# Create agent run (stub - returns fake UUID, no DB persistence)
+# Create agent run (persists to DB, spawns background AgentRunner that runs the LangGraph pipeline)
 curl -X POST http://localhost:8000/api/agents/runs \
   -H "Content-Type: application/json" \
   -d '{"task":"Fix the login bug in auth handler"}'
-# Expected: 201 with JSON containing id, task, status="pending"
+# Expected: 201 with JSON containing a real UUID, task, task_type (auto-classified),
+#           status="pending". The run will flip to "running" → "completed"/"failed" in the
+#           background as the graph executes. Set ECHO_SKIP_AGENT_RUNNER=1 to persist only.
 
-# List agent runs (stub - always empty)
-curl http://localhost:8000/api/agents/runs
-# Expected: {"runs":[],"total":0}
+# List agent runs (reads from DB, paginated)
+curl "http://localhost:8000/api/agents/runs?skip=0&limit=50"
+# Expected: {"runs":[{...persisted rows...}],"total":N}
 
-# Get trace (stub - always 404)
-curl http://localhost:8000/api/traces/00000000-0000-0000-0000-000000000000
-# Expected: 404 {"detail":"Run not found"}
+# Get single run by id
+curl http://localhost:8000/api/agents/runs/<run_id>
+# Expected: 200 with the AgentRun JSON, 404 if not found
 
-# RAG query (stub - always empty)
+# Dashboard stats (new in Phase 2)
+curl http://localhost:8000/api/agents/stats
+# Expected: {"total_runs":N,"total_tokens":N,"total_cost":"0.000000"}
+
+# Get trace (reads trace_events rows; 404 if run doesn't exist)
+curl http://localhost:8000/api/traces/<run_id>
+# Expected: {"run_id":"...","events":[{event_type, agent_name, data, tokens_in, tokens_out, cost, duration_ms, ...}]}
+
+# RAG query (real pgvector cosine search against rag_chunks)
 curl -X POST http://localhost:8000/api/rag/query \
   -H "Content-Type: application/json" \
   -d '{"query":"auth flow","top_k":5}'
-# Expected: {"results":[],"query":"auth flow"}
+# Expected: {"results":[{content, chunk_type, file_path, start_line, end_line, score}], "query":"auth flow"}
+# Empty array if the index hasn't been populated via `mise run index` yet.
 ```
+
+> **Running without Ollama:** Set `ECHO_DRY_RUN=1` before starting the API. The runner still executes the
+> graph end-to-end and emits trace events, but agent nodes return stub artifacts and the RAG retriever
+> returns `[]`. This is the fastest way to smoke-test the wiring without pulling models.
 
 ### 2.6 WebSocket Test
 
 With the API server running:
 
 ```bash
+# Create a run first, then connect to its WebSocket using the returned id
+RUN_ID=$(curl -s -X POST http://localhost:8000/api/agents/runs \
+  -H "Content-Type: application/json" \
+  -d '{"task":"Write a hello world function"}' | jq -r .id)
+
 # Using websocat (brew install websocat) or wscat (npm i -g wscat)
-websocat ws://localhost:8000/ws/test-run-id
+websocat ws://localhost:8000/ws/$RUN_ID
 # or
-wscat -c ws://localhost:8000/ws/test-run-id
+wscat -c ws://localhost:8000/ws/$RUN_ID
 ```
 
-**Expected:** Connection establishes. No events are pushed (no producer wired yet). Sending a JSON message like `{"type":"hitl_response","action":"approve"}` is accepted silently.
+**Expected:** A stream of JSON events arrives as the `AgentRunner` executes the graph:
 
-> **Current limitation:** WebSocket connects but no trace events are ever pushed because agent execution is not wired to the WS endpoint yet (Phase 2, Task 17).
+1. `{"type":"run_start","run_id":"...","status":"running"}`
+2. A sequence of `agent_start` / `llm_start` / `llm_end` / `agent_end` events per node
+   (supervisor → coder → reviewer → qa → security → docs → architect, depending on task_type)
+3. `{"type":"run_complete","run_id":"...","status":"completed","total_tokens":N,"total_cost":"...","duration_ms":N}`
+4. `{"type":"stream_end","run_id":"..."}` and the server closes the push loop
+
+If the graph interrupts for HITL, you'll see `{"type":"hitl_request",...}`; reply with
+`{"type":"hitl_response","action":"approve"}` and the graph resumes (300s timeout → auto-approve).
+
+> **Tip:** With `ECHO_DRY_RUN=1` the events stream in near-instantly without hitting Ollama. Use this
+> if you only want to verify the WebSocket producer is wired correctly.
 
 ---
 
@@ -252,14 +291,14 @@ Open http://localhost:3000 in browser.
 
 | URL | What You Should See |
 |-----|-------------------|
-| `http://localhost:3000` | Default Next.js template page (not yet replaced with product landing) |
+| `http://localhost:3000` | E.C.H.O. product landing: "Enterprise Cognitive Hub & Orchestration" headline, Sign In / Get Started buttons. Redirects to `/dashboard` if a session cookie is present. |
 | `http://localhost:3000/login` | Login form with email/password fields and "Sign in to E.C.H.O." heading |
 | `http://localhost:3000/register` | Registration form with name/email/password and "Create account" heading |
-| `http://localhost:3000/dashboard` | Dashboard overview with sidebar nav, 3 metric cards (all showing 0), "Recent Runs" section |
-| `http://localhost:3000/dashboard/agents` | Agent Console with task submission input + "Run" button, empty run list |
-| `http://localhost:3000/dashboard/rag` | RAG Explorer with search input, returns "No results found" on any query |
-| `http://localhost:3000/dashboard/rag/graph` | Knowledge Graph placeholder: "Graph visualization will render here..." |
-| `http://localhost:3000/dashboard/settings` | Settings page showing model config (gemma4:8b, nomic-embed-text) |
+| `http://localhost:3000/dashboard` | Overview with sidebar nav and 3 metric cards populated from `GET /api/agents/stats` (shows `—` while loading, then real totals for runs / tokens / cost) |
+| `http://localhost:3000/dashboard/agents` | Agent Console with task submission input + "Run" button, run list populated from `GET /api/agents/runs` |
+| `http://localhost:3000/dashboard/rag` | RAG Explorer with search input. Calls `POST /api/rag/query`, shows scored chunks or "No results found" |
+| `http://localhost:3000/dashboard/rag/graph` | Knowledge Graph placeholder: "Graph visualization will render here..." (post-MVP) |
+| `http://localhost:3000/dashboard/settings` | Settings page showing model config (gemma4:e4b, nomic-embed-text) |
 | `http://localhost:3000/dashboard/admin` | Admin panel with placeholder cards for Users, Cost Reports, Audit Logs |
 
 ### 3.4 Interactive Frontend Tests
@@ -270,17 +309,17 @@ With **both API (port 8000) and frontend (port 3000)** running:
    - Go to `/dashboard/agents`
    - Type "Fix the login bug in auth handler" in the task input
    - Click "Run"
-   - **Expected:** A new run card appears in the list with task text, "pending" badge, "0 tokens", "$0.0000"
-   - **Note:** Run won't progress (agent execution not wired yet)
+   - **Expected:** A new run card appears immediately with task text and "pending"/"running" badge. Within a few seconds (dry-run) or tens of seconds (real Ollama), the badge flips to "completed" and `total_tokens` / `total_cost` fill in.
 
 2. **Agent Run Detail:**
    - Click on the run card you just created
-   - **Expected:** Redirects to `/dashboard/agents/[id]`, shows "Run [8chars]..." heading, "Disconnected" badge (WebSocket connects then closes because no events), "Waiting for trace events..."
+   - **Expected:** Redirects to `/dashboard/agents/[id]`. The WebSocket connects and trace events stream in as they're produced (`run_start`, `agent_start`, `llm_*`, `agent_end`, `run_complete`). The trace viewer fills with per-agent nodes showing duration and token counts. On `stream_end` the WebSocket closes cleanly.
 
 3. **RAG Search:**
+   - First populate the index: `mise run index` (or set `ECHO_DRY_RUN=1` to verify the UI path without embeddings — retriever will still return `[]`)
    - Go to `/dashboard/rag`
    - Type "authentication" and click Search
-   - **Expected:** "No results found." (RAG retriever returns empty)
+   - **Expected:** Scored chunks from `rag_chunks` ordered by cosine similarity, or "No results found" if the index is empty.
 
 4. **Sidebar Navigation:**
    - Click "Hide sidebar" / "Show sidebar" button
@@ -313,15 +352,20 @@ cd apps/api && uv run python -m src.rag.indexer
 **Expected output:**
 
 ```
-Indexed N chunks from codebase
-  - ./apps/api/src/main.py:1-52 (function)
-  - ./apps/api/src/config.py:1-12 (class)
-  - ...
+Found N chunks under '.'
+Indexed N chunks into rag_chunks (embeddings + pgvector).
 ```
 
-The indexer scans `.py`, `.ts`, `.tsx`, `.md` files, chunks them (AST-aware for Python, heading-based for Markdown), and reports the count.
+The indexer scans `.py`, `.ts`, `.tsx`, `.md` files, chunks them (AST-aware for Python, heading-based for Markdown), embeds each chunk via the Ollama `nomic-embed-text` model in batches of 50, **truncates `rag_chunks`**, and inserts fresh rows with 768-dim vectors.
 
-> **Current limitation:** Chunks are generated but NOT written to the database. They're only printed to stdout. Full DB integration is Phase 2, Task 20.
+Verify in the DB:
+
+```bash
+docker compose exec db psql -U admin -d echo -c "SELECT count(*) FROM rag_chunks;"
+docker compose exec db psql -U admin -d echo -c "SELECT file_path, chunk_type, start_line, end_line FROM rag_chunks LIMIT 5;"
+```
+
+> **Dry-run mode:** With `ECHO_DRY_RUN=1` the indexer prints the first 5 chunks to stdout and skips embedding + DB writes entirely — use this if Ollama isn't running.
 
 ---
 
@@ -416,28 +460,32 @@ bunx playwright install chromium
 mise run test:e2e
 ```
 
-> **Known issues:** E2E tests currently have endpoint mismatches:
-> - `auth.spec.ts` hits `http://localhost:8000/auth/register` — should be `http://localhost:3000/api/auth/sign-up/email`
-> - `agent-run.spec.ts` has the same auth issue in `beforeEach`
-> - `rag-explorer.spec.ts` hits `POST http://localhost:8000/rag/chunks` — should be `POST http://localhost:8000/api/rag/query`
->
-> These will be fixed in Phase 2, Task 21.
+All three specs now point at the correct endpoints:
+- `auth.spec.ts` — `POST /api/auth/sign-up/email` against Next.js (Better Auth)
+- `agent-run.spec.ts` — same auth setup, then `POST /api/agents/runs` and WebSocket trace assertions
+- `rag-explorer.spec.ts` — `POST /api/rag/query`
+
+For a fully green E2E run you need: DB migrated, API running on :8000 with `ECHO_DRY_RUN=1` (or Ollama + models pulled), and the web dev server on :3000.
 
 ---
 
-## 8. Current Limitations Summary
+## 8. Current Status Summary (post Phase 2)
 
-| Feature | Status | What Works | What Doesn't |
-|---------|--------|------------|--------------|
-| **DB persistence** | Stub | Tables exist, models defined | API routes don't read/write DB |
-| **Agent execution** | Stub | LangGraph compiles, supervisor classifies | Agents don't call LLM, runs don't execute |
-| **WebSocket** | Shell | Connects, accepts messages | No trace events pushed from runs |
-| **RAG** | Partial | Chunking + scanning works | No DB storage, no vector search |
-| **PII scrubbing** | Library | Works standalone in tests | Not wired into request pipeline |
-| **Cost tracking** | In-memory | Tracks in-memory correctly | Not persisted to cost_ledger table |
-| **Auth** | Partial | Better Auth handler exists, login/register pages render | Full E2E auth flow untested |
-| **Dashboard** | Static | All pages render, navigation works | Shows hardcoded zeros, no real data |
-| **Home page** | Placeholder | Loads | Shows default Next.js CNA template |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **DB persistence** | ✅ Wired | `agent_runs`, `trace_events`, `audit_log`, `cost_ledger`, `rag_chunks` all read/written by the API |
+| **Agent execution** | ✅ Wired | `AgentRunner.execute` runs the LangGraph pipeline via `astream`, updates run status, persists traces and audit entries |
+| **WebSocket** | ✅ Wired | `/ws/{run_id}` streams real events from the runner's per-run `asyncio.Queue`; closes on `stream_end` |
+| **Gateway middleware** | ✅ Wired | All agent LLM calls go through `gateway_llm_call` (scrub → rate limit → LiteLLM → cost record → audit) |
+| **Cost tracking** | ✅ Wired | `CostTracker.record()` accumulates in memory; `flush()` writes `cost_ledger` rows at end of each run |
+| **RAG pipeline** | ✅ Wired | Indexer embeds + writes `rag_chunks`; retriever does pgvector cosine search via `<=>` |
+| **Dashboard metrics** | ✅ Wired | Overview card fetches `GET /api/agents/stats` |
+| **Home page** | ✅ Replaced | Product landing with redirect-if-authenticated |
+| **Drizzle parity** | ✅ Complete | `sessions`, `traceEvents`, `auditLog`, `ragChunks`, `graphNodes`, `graphEdges`, `costLedger` all present |
+| **E2E tests** | ✅ Endpoints fixed | All specs point at Next.js `/api/auth/*` and correct FastAPI paths |
+| **Auth** | Partial | Better Auth handler + pages work; session propagation to FastAPI routes not yet enforced (all routes still accept `user_id=null`) |
+| **Knowledge graph viz** | Placeholder | Canvas placeholder only (post-MVP) |
+| **Real cost pricing** | Stub | `cost=0.0` always for Ollama; LiteLLM pricing not plumbed for local models |
 
 ---
 
@@ -472,4 +520,10 @@ mise run index
 cd apps/api && RUN_OLLAMA_TESTS=1 uv run pytest -m ollama -v && cd ../..
 ```
 
-If all the above pass, Phase 1 scaffolding is verified. Phase 2 (wiring + integration) is needed to make the system functional end-to-end.
+If all the above pass, Phase 1 scaffolding **and** Phase 2 wiring are verified. For an end-to-end smoke, run a task through the dashboard (or via `curl POST /api/agents/runs`) with Ollama running (or `ECHO_DRY_RUN=1`) and confirm:
+
+- The run row appears in `agent_runs` and transitions `pending → running → completed`
+- `trace_events` contains `agent_start`/`llm_*`/`agent_end` rows for the dispatched nodes
+- `audit_log` has `llm_call` entries when LLM calls happen (real mode)
+- `cost_ledger` has one row per LLM call after the run completes
+- The `/ws/{run_id}` stream delivered `run_start` → `run_complete` → `stream_end`

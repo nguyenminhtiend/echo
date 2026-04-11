@@ -18,14 +18,14 @@ def classify_complexity(task: str) -> TaskComplexity:
 
 
 def create_llm_router() -> Router:
-    """Create LiteLLM router configured for local Ollama."""
+    """Create LiteLLM router configured for OpenRouter chat inference."""
     return Router(
         model_list=[
             {
                 "model_name": "echo-default",
                 "litellm_params": {
                     "model": settings.echo_llm_model,
-                    "api_base": settings.ollama_base_url,
+                    "api_key": settings.openrouter_api_key.get_secret_value(),
                 },
             },
         ],

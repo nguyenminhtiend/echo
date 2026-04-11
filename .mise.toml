@@ -5,14 +5,15 @@ bun = "latest"
 
 [env]
 DATABASE_URL = "postgresql+asyncpg://admin:123456@127.0.0.1:5432/echo"
+OPENROUTER_API_KEY = "sk-or-v1-your-key-here"
+ECHO_LLM_MODEL = "openrouter/free"
 OLLAMA_BASE_URL = "http://localhost:11434"
-ECHO_LLM_MODEL = "ollama/gemma4:e4b"
 ECHO_EMBED_MODEL = "nomic-embed-text:latest"
 SECRET_KEY = "change-me-in-production"
 
 [tasks.dev]
 description = "Start all services for development"
-run = "docker compose up -d db && mise run dev:api & mise run dev:web"
+run = "mise run dev:api & mise run dev:web"
 
 [tasks."dev:api"]
 description = "Start FastAPI backend"

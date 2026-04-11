@@ -13,7 +13,7 @@ The user has signed up for OpenRouter and wants chat generation to move to a hos
 ## Goals
 
 1. Replace Ollama chat inference with OpenRouter via the existing LiteLLM gateway.
-2. Default to `openrouter/anthropic/claude-sonnet-4.5` as the single model for all agents.
+2. Default to `openrouter/free` as the single model for all agents.
 3. Record real cost per call (currently hardcoded to `0.0`).
 4. Keep the `GatewayLLMResult` surface and the rate limiter/scrubber/audit pipeline unchanged so agent nodes need no edits.
 5. Fail fast at startup if the API key is missing, except in `ECHO_DRY_RUN` mode.
@@ -46,7 +46,7 @@ Rationale:
 - No real-workload data yet on which agents actually need cheaper tiers.
 - The config key is already set up so adding per-agent overrides later (e.g. `ECHO_LLM_MODEL_CODER=...`) is a code change of <10 lines if/when needed.
 
-Chosen default: `openrouter/anthropic/claude-sonnet-4.5`. Sweet spot for code agents, well-supported by LiteLLM, OpenRouter returns real cost in the response, cost is reasonable (~$3/M in, $15/M out).
+Chosen default: `openrouter/free`. Sweet spot for code agents, well-supported by LiteLLM, OpenRouter returns real cost in the response, cost is reasonable (~$3/M in, $15/M out).
 
 ## Tech Approach
 
@@ -62,7 +62,7 @@ The rate limiter, PII scrubber, audit logging, and `GatewayLLMResult` dataclass 
 
 ### `apps/api/src/config.py`
 
-Add `openrouter_api_key: SecretStr` (required, no default — fails fast on startup if missing). Add `echo_llm_app_name: str = "echo"` for the OpenRouter `X-Title` header. Change `echo_llm_model` default to `"openrouter/anthropic/claude-sonnet-4.5"`. Add defaults for `ollama_base_url` and `echo_embed_model` so only `DATABASE_URL`, `SECRET_KEY`, and `OPENROUTER_API_KEY` are strictly required.
+Add `openrouter_api_key: SecretStr` (required, no default — fails fast on startup if missing). Add `echo_llm_app_name: str = "echo"` for the OpenRouter `X-Title` header. Change `echo_llm_model` default to `"openrouter/free"`. Add defaults for `ollama_base_url` and `echo_embed_model` so only `DATABASE_URL`, `SECRET_KEY`, and `OPENROUTER_API_KEY` are strictly required.
 
 ### `apps/api/src/gateway/router.py`
 
@@ -107,7 +107,7 @@ Split the env file into clearly labeled sections. Replace the current single "Ol
 ```
 # Chat LLM (OpenRouter)
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
-ECHO_LLM_MODEL=openrouter/anthropic/claude-sonnet-4.5
+ECHO_LLM_MODEL=openrouter/free
 
 # Embeddings (local Ollama)
 OLLAMA_BASE_URL=http://localhost:11434
@@ -119,7 +119,7 @@ ECHO_EMBED_MODEL=nomic-embed-text:latest
 Set env defaults for the new variables:
 ```python
 os.environ.setdefault("OPENROUTER_API_KEY", "sk-or-test-key-not-real")
-os.environ.setdefault("ECHO_LLM_MODEL", "openrouter/anthropic/claude-sonnet-4.5")
+os.environ.setdefault("ECHO_LLM_MODEL", "openrouter/free")
 os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434")
 os.environ.setdefault("ECHO_EMBED_MODEL", "nomic-embed-text:latest")
 ```
@@ -127,7 +127,7 @@ os.environ.setdefault("ECHO_EMBED_MODEL", "nomic-embed-text:latest")
 
 ### `apps/api/tests/test_gateway/test_tracker.py`
 
-Replace the two `"ollama/gemma4:8b"` string literals with `"openrouter/anthropic/claude-sonnet-4.5"`. No logic change.
+Replace the two `"ollama/gemma4:8b"` string literals with `"openrouter/free"`. No logic change.
 
 ### `apps/api/tests/integration/test_ollama_smoke.py` → rename to `test_ollama_embed_smoke.py`
 
@@ -158,7 +158,7 @@ Three edits:
   1. Set `OPENROUTER_API_KEY` in `.env`.
   2. `mise run dev` — verify API boots without errors.
   3. Kick off one agent run from the web UI or via `POST /api/agents/runs`.
-  4. Verify the run completes, traces show `model=openrouter/anthropic/claude-sonnet-4.5`, and `total_cost > 0`.
+  4. Verify the run completes, traces show `model=openrouter/free`, and `total_cost > 0`.
   5. Check OpenRouter dashboard shows the request under the `echo` app name.
 - **No live OpenRouter CI test** — would require a real key in CI. Out of scope.
 
@@ -171,6 +171,6 @@ Single commit / single PR. No feature flag, no gradual rollout — this is a sol
 None. All decisions resolved during brainstorming:
 - Scope: full replacement of Ollama chat (embeddings stay).
 - Embeddings: stay on Ollama.
-- Default model: `openrouter/anthropic/claude-sonnet-4.5`, single model for all agents.
+- Default model: `openrouter/free`, single model for all agents.
 - Cost tracking: real extraction via LiteLLM.
 - API key: `SecretStr` in Settings, fail-fast at startup.

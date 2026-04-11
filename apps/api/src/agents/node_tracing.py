@@ -41,15 +41,17 @@ def llm_start_entry(agent: str, data: dict | None = None) -> dict:
 def llm_end_entry(
     agent: str,
     *,
-    model: str = "ollama/gemma4:8b",
+    model: str | None = None,
     tokens_in: int = 0,
     tokens_out: int = 0,
     cost: float = 0.0,
     duration_ms: int = 0,
     data: dict | None = None,
 ) -> dict:
+    from src.config import settings
+
     d = {
-        "model": model,
+        "model": model or settings.echo_llm_model,
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
         "cost": cost,
