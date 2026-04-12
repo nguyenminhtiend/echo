@@ -1,8 +1,13 @@
 import re
+from functools import lru_cache
 
 from presidio_analyzer import AnalyzerEngine
 
-_analyzer = AnalyzerEngine()
+
+@lru_cache(maxsize=1)
+def _get_analyzer() -> AnalyzerEngine:
+    return AnalyzerEngine()
+
 
 # Regex patterns for secrets
 _SECRET_PATTERNS = [
@@ -18,7 +23,7 @@ _SECRET_PATTERNS = [
 
 def scrub_pii(text: str) -> str:
     """Replace PII (emails, phones, SSNs) with placeholders using Presidio."""
-    results = _analyzer.analyze(
+    results = _get_analyzer().analyze(
         text=text,
         entities=["EMAIL_ADDRESS", "PHONE_NUMBER", "US_SSN"],
         language="en",
