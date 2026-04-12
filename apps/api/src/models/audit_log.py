@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import ForeignKey, Index, String
+from sqlalchemy import Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,7 +11,8 @@ class AuditLog(TimestampMixin, Base):
     __tablename__ = "audit_log"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # FK to Better Auth's ``"user".id`` is declared in migration b8c9d0e1f2a3.
+    user_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     resource: Mapped[str | None] = mapped_column(String(255))
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)

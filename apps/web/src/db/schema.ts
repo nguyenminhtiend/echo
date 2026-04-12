@@ -1,5 +1,6 @@
 import {
   type AnyPgColumn,
+  boolean,
   decimal,
   integer,
   jsonb,
@@ -10,19 +11,69 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: varchar('email', { length: 255 }).unique().notNull(),
-  name: varchar('name', { length: 255 }),
-  passwordHash: varchar('password_hash', { length: 255 }),
-  role: varchar('role', { length: 50 }).notNull().default('user'),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+/**
+ * Identity tables — OWNED BY BETTER AUTH. These mirror the shape Better Auth
+ * auto-migrates in ``apps/web/src/lib/auth.ts``; do not create/alter them
+ * from this file. Column names are camelCase to match the DDL Better Auth
+ * actually emits. Drizzle is used read-only here.
+ */
+export const user = pgTable('user', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').unique().notNull(),
+  emailVerified: boolean('emailVerified').notNull(),
+  image: text('image'),
+  createdAt: timestamp('createdAt', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const session = pgTable('session', {
+  id: text('id').primaryKey(),
+  expiresAt: timestamp('expiresAt', { withTimezone: true }).notNull(),
+  token: text('token').unique().notNull(),
+  createdAt: timestamp('createdAt', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt', { withTimezone: true }).notNull(),
+  ipAddress: text('ipAddress'),
+  userAgent: text('userAgent'),
+  userId: text('userId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+});
+
+export const account = pgTable('account', {
+  id: text('id').primaryKey(),
+  accountId: text('accountId').notNull(),
+  providerId: text('providerId').notNull(),
+  userId: text('userId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  accessToken: text('accessToken'),
+  refreshToken: text('refreshToken'),
+  idToken: text('idToken'),
+  accessTokenExpiresAt: timestamp('accessTokenExpiresAt', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refreshTokenExpiresAt', { withTimezone: true }),
+  scope: text('scope'),
+  password: text('password'),
+  createdAt: timestamp('createdAt', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt', { withTimezone: true }).notNull(),
+});
+
+export const verification = pgTable('verification', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expiresAt', { withTimezone: true }).notNull(),
+  createdAt: timestamp('createdAt', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Application tables — OWNED BY ALEMBIC (``apps/api/src/db/alembic``).
+ * ``user_id`` columns are ``text`` and FK Better Auth's ``user.id`` (cuid2).
+ */
 export const agentRuns = pgTable('agent_runs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(() => users.id),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
   task: text('task').notNull(),
   taskType: varchar('task_type', { length: 50 }),
   complexity: varchar('complexity', { length: 20 }),
@@ -33,15 +84,6 @@ export const agentRuns = pgTable('agent_runs', {
   durationMs: integer('duration_ms'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
-});
-
-export const sessions = pgTable('sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  sessionToken: varchar('session_token', { length: 255 }).notNull().unique(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 });
 
 export const traceEvents = pgTable('trace_events', {
@@ -62,7 +104,7 @@ export const traceEvents = pgTable('trace_events', {
 
 export const auditLog = pgTable('audit_log', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(() => users.id),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
   action: varchar('action', { length: 100 }).notNull(),
   resource: varchar('resource', { length: 255 }),
   metadata: jsonb('metadata'),
@@ -101,7 +143,7 @@ export const graphEdges = pgTable('graph_edges', {
 
 export const costLedger = pgTable('cost_ledger', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(() => users.id),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
   runId: uuid('run_id').references(() => agentRuns.id),
   model: varchar('model', { length: 100 }).notNull(),
   tokensIn: integer('tokens_in').notNull(),

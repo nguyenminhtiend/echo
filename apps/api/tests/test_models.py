@@ -1,17 +1,8 @@
-from src.models.user import User, UserSession
 from src.models.agent_run import AgentRun
-from src.models.trace_event import TraceEvent
-from src.models.cost_ledger import CostLedger
 from src.models.audit_log import AuditLog
-from src.models.rag import RagChunk, GraphNode, GraphEdge
-
-
-def test_user_table_name():
-    assert User.__tablename__ == "users"
-
-
-def test_user_session_table_name():
-    assert UserSession.__tablename__ == "sessions"
+from src.models.cost_ledger import CostLedger
+from src.models.rag import GraphEdge, GraphNode, RagChunk
+from src.models.trace_event import TraceEvent
 
 
 def test_agent_run_table_name():
@@ -42,12 +33,13 @@ def test_graph_edge_table_name():
     assert GraphEdge.__tablename__ == "graph_edges"
 
 
-def test_user_has_email_column():
-    assert "email" in User.__table__.columns.keys()
-
-
 def test_agent_run_has_status_column():
-    assert "status" in AgentRun.__table__.columns.keys()
+    assert "status" in AgentRun.__table__.columns
+
+
+def test_agent_run_user_id_is_text():
+    # Better Auth owns identity; user_id must be text (cuid2), not uuid.
+    assert str(AgentRun.__table__.columns["user_id"].type).upper() == "TEXT"
 
 
 def test_trace_event_has_indexes():

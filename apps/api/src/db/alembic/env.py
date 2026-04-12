@@ -14,6 +14,23 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+# pgvector's ``vector`` type isn't mapped in the SQLAlchemy ORM, so
+# autogenerate otherwise thinks the ``embedding`` columns are drift and
+# produces spurious "Detected removed column" diffs. Filter them out.
+_PGVECTOR_COLUMNS = {
+    ("rag_chunks", "embedding"),
+    ("graph_nodes", "embedding"),
+}
+
+
+def _include_object(object_, name, type_, reflected, compare_to):  # type: ignore[no-untyped-def]
+    if type_ == "column" and (object_.table.name, name) in _PGVECTOR_COLUMNS:
+        return False
+    if type_ == "index" and name == "idx_rag_chunks_embedding":
+        return False
+    return True
+
+
 def _resolved_url() -> str:
     """Use the sqlalchemy.url alembic main option if it was set by the caller
     (e.g. the integration-test conftest), otherwise fall back to the app
@@ -25,13 +42,21 @@ def _resolved_url() -> str:
 
 
 def run_migrations_offline():
-    context.configure(url=_resolved_url(), target_metadata=target_metadata)
+    context.configure(
+        url=_resolved_url(),
+        target_metadata=target_metadata,
+        include_object=_include_object,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=_include_object,
+    )
     with context.begin_transaction():
         context.run_migrations()
 

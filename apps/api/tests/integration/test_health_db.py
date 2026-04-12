@@ -13,9 +13,7 @@ async def test_health_ok(client: AsyncClient):
 
 
 async def test_pgvector_extension_present(session: AsyncSession):
-    row = await session.execute(
-        text("SELECT extname FROM pg_extension WHERE extname='vector'")
-    )
+    row = await session.execute(text("SELECT extname FROM pg_extension WHERE extname='vector'"))
     assert row.scalar_one() == "vector"
 
 
@@ -24,5 +22,7 @@ async def test_core_tables_exist(session: AsyncSession):
         text("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
     )
     names = {r[0] for r in rows}
-    for expected in ("users", "agent_runs", "trace_events", "rag_chunks"):
+    # Identity tables (``user``/``session``/etc.) are owned by Better Auth and
+    # are NOT created by Alembic, so we only assert the Alembic-managed set.
+    for expected in ("agent_runs", "trace_events", "rag_chunks", "audit_log", "cost_ledger"):
         assert expected in names, f"missing table {expected}"

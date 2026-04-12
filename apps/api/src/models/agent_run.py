@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import DateTime, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,7 +13,11 @@ class AgentRun(TimestampMixin, Base):
     __tablename__ = "agent_runs"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # Better Auth owns the ``"user"`` table with text cuid2 IDs. The FK is
+    # enforced at the DB level by the ``b8c9d0e1f2a3`` migration; we don't
+    # declare it here to avoid coupling this metadata to an externally-managed
+    # table (and to sidestep ``user`` being a reserved word in Postgres).
+    user_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     task: Mapped[str] = mapped_column(Text, nullable=False)
     task_type: Mapped[str | None] = mapped_column(String(50))
     complexity: Mapped[str | None] = mapped_column(String(20))

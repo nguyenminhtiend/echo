@@ -22,13 +22,22 @@ run = "uv run fastapi dev src/main.py --port 8000"
 
 [tasks."dev:web"]
 description = "Start Next.js frontend"
-dir = "apps/web
+dir = "apps/web"
 run = "bun run dev"
 
 [tasks."db:migrate"]
-description = "Run Alembic migrations"
+description = "Run Alembic + Better Auth migrations"
+depends = ["db:migrate:alembic", "db:migrate:auth"]
+
+[tasks."db:migrate:alembic"]
+description = "Run Alembic migrations (app schema)"
 dir = "apps/api"
 run = "uv run alembic upgrade head"
+
+[tasks."db:migrate:auth"]
+description = "Run Better Auth CLI migrations (user/session/account/verification)"
+dir = "apps/web"
+run = "bunx @better-auth/cli migrate -y"
 
 [tasks."db:reset"]
 description = "Reset database"

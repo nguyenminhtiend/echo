@@ -39,14 +39,17 @@ class CostTracker:
         self,
         session: AsyncSession,
         *,
-        user_id: uuid.UUID | None = None,
+        user_id: str | None = None,
         run_id: uuid.UUID | None = None,
     ) -> int:
         """Write accumulated usage rows to ``cost_ledger`` and clear the buffer."""
         if not self.entries:
             return 0
         for e in self.entries:
-            uid = _parse_uuid(e.user_id) if e.user_id else user_id
+            # user_id is a Better Auth cuid2 string; ``anonymous``/``unknown``
+            # sentinels (from LangGraph configurable) get collapsed to NULL.
+            raw_uid = e.user_id or user_id
+            uid = raw_uid if raw_uid and raw_uid not in ("anonymous", "unknown") else None
             rid = _parse_uuid(e.run_id) if e.run_id else run_id
             session.add(
                 CostLedger(
