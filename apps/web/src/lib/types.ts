@@ -16,6 +16,24 @@ export interface AgentRunList {
   total: number;
 }
 
+export interface TraceEventRest {
+  id: string;
+  run_id: string;
+  event_type: string;
+  agent_name: string | null;
+  data: Record<string, unknown>;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  cost: string | null;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+export interface TraceTreeResponse {
+  run_id: string;
+  events: TraceEventRest[];
+}
+
 export interface RAGResult {
   content: string;
   chunk_type: string | null;

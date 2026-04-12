@@ -38,7 +38,7 @@ export default function RAGPage() {
             <CardHeader>
               <CardTitle className="text-sm">
                 {r.file_path}:{r.start_line}-{r.end_line} ({r.chunk_type}) — score:{' '}
-                {r.score.toFixed(3)}
+                {Number(r.score).toFixed(3)}
               </CardTitle>
             </CardHeader>
             <CardContent>

@@ -1,30 +1,43 @@
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
 import { QueryProvider } from '@/lib/query-provider';
+import type { Metadata } from 'next';
+import { Geist_Mono, Inter, Manrope, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+const manrope = Manrope({
+  variable: '--font-manrope',
+  subsets: ['latin']
+});
+
+const inter = Inter({
+  variable: '--font-inter',
+  subsets: ['latin']
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
+  subsets: ['latin']
 });
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
-  subsets: ['latin'],
+  subsets: ['latin']
 });
 
 export const metadata: Metadata = {
   title: 'E.C.H.O.',
-  description: 'Enterprise Cognitive Hub & Orchestration',
+  description: 'Enterprise Cognitive Hub & Orchestration'
 };
 
 export default function RootLayout({
-  children,
+  children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${manrope.variable} ${inter.variable} ${spaceGrotesk.variable} ${geistMono.variable} dark h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col">
         <QueryProvider>{children}</QueryProvider>
       </body>

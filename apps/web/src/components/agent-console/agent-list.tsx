@@ -32,7 +32,7 @@ export function AgentList({ runs }: { runs: AgentRun[] }) {
                 <p className="font-medium">{run.task}</p>
                 <p className="text-sm text-muted-foreground">
                   {run.task_type ?? 'unclassified'} &middot; {run.total_tokens} tokens &middot; $
-                  {run.total_cost.toFixed(4)}
+                  {Number(run.total_cost ?? 0).toFixed(4)}
                 </p>
               </div>
               <Badge className={STATUS_COLORS[run.status] ?? 'bg-gray-500'}>{run.status}</Badge>

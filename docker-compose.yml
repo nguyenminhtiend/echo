@@ -8,9 +8,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-echo}
       POSTGRES_DB: ${POSTGRES_DB:-echo}
     volumes:
-      - echo_pgdata:/var/lib/postgresql/data
+      - echo_pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U echo"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-echo}"]
       interval: 5s
       timeout: 3s
       retries: 5

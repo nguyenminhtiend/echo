@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { TaskForm } from '@/components/agent-console/task-form';
-import { AgentList } from '@/components/agent-console/agent-list';
+import { AgentHistory } from '@/components/agent-console/agent-history';
+import { RunConsole } from '@/components/agent-console/run-console';
 import { apiFetch } from '@/lib/api-client';
 import type { AgentRun, AgentRunList } from '@/lib/types';
+import { useEffect, useState } from 'react';
 
 export default function AgentsPage() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
 
   useEffect(() => {
     apiFetch<AgentRunList>('/api/agents/runs').then((data) => setRuns(data.runs));
@@ -15,13 +16,17 @@ export default function AgentsPage() {
 
   function handleNewRun(run: AgentRun) {
     setRuns((prev) => [run, ...prev]);
+    setSelectedRun(run);
+  }
+
+  function handleSelect(run: AgentRun) {
+    setSelectedRun(run);
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Agent Console</h1>
-      <TaskForm onSubmit={handleNewRun} />
-      <AgentList runs={runs} />
+    <div className="flex h-full">
+      <RunConsole selectedRun={selectedRun} onNewRun={handleNewRun} />
+      <AgentHistory runs={runs} selectedId={selectedRun?.id ?? null} onSelect={handleSelect} />
     </div>
   );
 }
