@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 
 import structlog
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketState
 
 from src.agents.runner import ensure_queues, get_hitl_queue
@@ -25,7 +25,7 @@ async def agent_trace_ws(websocket: WebSocket, run_id: str):
                 await websocket.send_json(event)
                 if event.get("type") == "stream_end":
                     break
-        except Exception:
+        except Exception:  # noqa: BLE001
             log.debug("ws_push_events_ended", run_id=run_id)
 
     async def _receive_hitl():
@@ -36,7 +36,7 @@ async def agent_trace_ws(websocket: WebSocket, run_id: str):
                     hq = get_hitl_queue(run_id)
                     if hq is not None:
                         await hq.put(data)
-        except WebSocketDisconnect, Exception:
+        except Exception:  # noqa: BLE001
             log.debug("ws_receive_ended", run_id=run_id)
 
     push_task = asyncio.create_task(_push_events())

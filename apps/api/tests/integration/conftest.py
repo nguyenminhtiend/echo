@@ -1,5 +1,5 @@
 import os
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
@@ -11,6 +11,9 @@ from sqlalchemy.pool import NullPool
 
 from src.db import session as db_session
 from src.main import app
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 PG_IMAGE = "pgvector/pgvector:pg18"  # pg18 + pgvector 0.8.2
 

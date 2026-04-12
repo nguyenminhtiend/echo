@@ -11,7 +11,10 @@ def test_moderate_task():
 
 
 def test_complex_task():
-    assert classify_complexity("refactor the entire authentication architecture") == TaskComplexity.COMPLEX
+    assert (
+        classify_complexity("refactor the entire authentication architecture")
+        == TaskComplexity.COMPLEX
+    )
 
 
 def test_security_keyword_is_complex():

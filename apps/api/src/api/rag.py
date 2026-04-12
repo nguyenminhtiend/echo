@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/rag", tags=["rag"])
 @router.post("/query", response_model=RAGQueryResponse)
 async def query_rag(
     body: RAGQueryRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
     retriever = RAGRetriever(db)
     rows = await retriever.query(body.query, top_k=body.top_k)

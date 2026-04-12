@@ -2,6 +2,7 @@ import asyncio
 import os
 import uuid
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
 @router.post("/runs", status_code=201, response_model=AgentRunResponse)
-async def create_run(body: AgentRunCreate, db: AsyncSession = Depends(get_db)):
+async def create_run(body: AgentRunCreate, db: Annotated[AsyncSession, Depends(get_db)]):
     classified = classify_task(body.task)
     task_type = body.task_type if body.task_type is not None else classified.value
     run = AgentRun(
@@ -43,9 +44,9 @@ async def create_run(body: AgentRunCreate, db: AsyncSession = Depends(get_db)):
 
 @router.get("/runs", response_model=AgentRunList)
 async def list_runs(
-    db: AsyncSession = Depends(get_db),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ):
     count_stmt = select(func.count()).select_from(AgentRun)
     total = (await db.execute(count_stmt)).scalar_one()
@@ -58,7 +59,7 @@ async def list_runs(
 
 
 @router.get("/runs/{run_id}", response_model=AgentRunResponse)
-async def get_run(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_run(run_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
     stmt = select(AgentRun).where(AgentRun.id == run_id)
     run = (await db.execute(stmt)).scalar_one_or_none()
     if run is None:
@@ -67,7 +68,7 @@ async def get_run(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/stats", response_model=AgentStatsResponse)
-async def get_stats(db: AsyncSession = Depends(get_db)):
+async def get_stats(db: Annotated[AsyncSession, Depends(get_db)]):
     stmt = select(
         func.count(AgentRun.id),
         func.coalesce(func.sum(AgentRun.total_tokens), 0),

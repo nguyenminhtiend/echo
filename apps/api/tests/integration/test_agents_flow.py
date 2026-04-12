@@ -1,7 +1,10 @@
 import uuid
+from typing import TYPE_CHECKING
 
 import pytest
-from httpx import AsyncClient
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 pytestmark = pytest.mark.integration
 
@@ -21,7 +24,8 @@ async def test_list_runs_returns_shape(client: AsyncClient):
     r = await client.get("/api/agents/runs")
     assert r.status_code == 200
     body = r.json()
-    assert "runs" in body and "total" in body
+    assert "runs" in body
+    assert "total" in body
     assert isinstance(body["runs"], list)
 
 

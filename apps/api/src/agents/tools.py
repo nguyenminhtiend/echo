@@ -57,7 +57,7 @@ def read_file_tool(path: str) -> str:
         if not p.is_file():
             return f"[read_file] Not found: {path}"
         return p.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
+    except OSError as e:
         return f"[read_file] Error: {e}"
 
 

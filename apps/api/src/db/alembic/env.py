@@ -26,9 +26,7 @@ _PGVECTOR_COLUMNS = {
 def _include_object(object_, name, type_, reflected, compare_to):  # type: ignore[no-untyped-def]
     if type_ == "column" and (object_.table.name, name) in _PGVECTOR_COLUMNS:
         return False
-    if type_ == "index" and name == "idx_rag_chunks_embedding":
-        return False
-    return True
+    return not (type_ == "index" and name == "idx_rag_chunks_embedding")
 
 
 def _resolved_url() -> str:

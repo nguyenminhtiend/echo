@@ -1,4 +1,5 @@
 import uuid
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -13,7 +14,7 @@ router = APIRouter(prefix="/api/traces", tags=["traces"])
 
 
 @router.get("/{run_id}", response_model=TraceTree)
-async def get_trace(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_trace(run_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
     run_stmt = select(AgentRun).where(AgentRun.id == run_id)
     run = (await db.execute(run_stmt)).scalar_one_or_none()
     if run is None:

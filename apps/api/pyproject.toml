@@ -72,6 +72,9 @@ select = [
   "PIE",         # misc lints
   "TCH",         # type-checking imports
   "TID",         # tidy imports
+  "FAST",        # fastapi
+  "PT",          # pytest-style
+  "BLE",         # blind-except
 ]
 ignore = [
   "S101",        # allow assert (used in tests)
