@@ -2,11 +2,20 @@ import re
 from functools import lru_cache
 
 from presidio_analyzer import AnalyzerEngine
+from presidio_analyzer.nlp_engine import NlpEngineProvider
+
+# Use en_core_web_sm (~12MB) instead of Presidio's default en_core_web_lg (~500MB).
+# The small model is sufficient for entity detection used here (email, phone, SSN).
+_NLP_CONFIG = {
+    "nlp_engine_name": "spacy",
+    "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
+}
 
 
 @lru_cache(maxsize=1)
 def _get_analyzer() -> AnalyzerEngine:
-    return AnalyzerEngine()
+    nlp_engine = NlpEngineProvider(nlp_configuration=_NLP_CONFIG).create_engine()
+    return AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
 
 
 # Regex patterns for secrets

@@ -13,8 +13,8 @@ Local manual testing procedures for verifying the current state of the E.C.H.O. 
 | Tool | Version | Install |
 |------|---------|---------|
 | mise | latest | `curl https://mise.run \| sh` |
-| Docker + Docker Compose | v2+ | [docker.com](https://docker.com) |
-| Ollama | latest | `brew install ollama` or [ollama.com](https://ollama.com) |
+| PostgreSQL 18 + pgvector | 18.x / 0.8+ | Homebrew: `brew install postgresql@18 pgvector` (or use Docker Compose — see below) |
+| Ollama (embeddings) | latest | `brew install ollama` or [ollama.com](https://ollama.com) |
 
 After installing mise, run from the project root:
 
@@ -24,10 +24,11 @@ mise install
 
 This installs Python 3.14, Node 24, and Bun.
 
-### Pull Ollama Models
+### Pull Ollama Models (embeddings only)
+
+Chat now runs through OpenRouter; Ollama is used only for embeddings.
 
 ```bash
-ollama pull gemma4:e4b
 ollama pull nomic-embed-text:latest
 ```
 
@@ -35,7 +36,7 @@ Verify:
 
 ```bash
 ollama list
-# Should show gemma4:e4b and nomic-embed-text:latest
+# Should show nomic-embed-text:latest
 ```
 
 ### Environment Setup
@@ -44,30 +45,63 @@ ollama list
 cp .env.example .env
 ```
 
-Check `.env` has correct DB credentials matching docker-compose defaults:
+Edit `.env` and fill in your OpenRouter API key plus DB credentials. Example:
 
 ```
 DATABASE_URL=postgresql+asyncpg://admin:123456@127.0.0.1:5432/echo
 POSTGRES_USER=admin
 POSTGRES_PASSWORD=123456
 POSTGRES_DB=echo
+
+OPENROUTER_API_KEY=sk-or-v1-...
+ECHO_LLM_MODEL=openrouter/free
+
+OLLAMA_BASE_URL=http://localhost:11434
+ECHO_EMBED_MODEL=nomic-embed-text:latest
+
+SECRET_KEY=change-me-in-production
 ```
 
-> **Note:** The `docker-compose.yml` defaults to `echo:echo` credentials via `${POSTGRES_USER:-echo}`. Your `.env` overrides this to `admin:123456`. Make sure `.env` is loaded or the compose defaults match your `DATABASE_URL`.
+> **Note:** The `docker-compose.yml` defaults to `echo:echo` credentials via `${POSTGRES_USER:-echo}`. Your `.env` overrides this to `admin:123456`. Either load `.env` before `docker compose up` or make sure the compose defaults match your `DATABASE_URL`.
+
+### Local Postgres (without Docker)
+
+If you already run Postgres 18 locally (e.g. via Homebrew) you don't need Docker at all — skip the `docker compose up -d db` step and create the databases manually:
+
+```bash
+# Dev DB (matches DATABASE_URL in .env)
+psql -h 127.0.0.1 -U admin -d template1 -c "CREATE DATABASE echo;"
+psql -h 127.0.0.1 -U admin -d echo -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+
+# Test DB (only needed for integration tests; must be EMPTY — fixtures run migrations against it)
+psql -h 127.0.0.1 -U admin -d template1 -c "CREATE DATABASE echo_test;"
+psql -h 127.0.0.1 -U admin -d echo_test -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+```
+
+Then run migrations on the dev DB:
+
+```bash
+mise run db:migrate
+```
+
+Integration tests point at `echo_test` via the `ECHO_TEST_DATABASE_URL` env var — see §2.3.
 
 ### Optional Env Flags (new in Phase 2)
 
 | Var | Purpose |
 |-----|---------|
-| `ECHO_DRY_RUN=1` | Agents and RAG indexer skip real LLM / embedding calls and emit stub artifacts. Use for fast smoke tests without Ollama. |
+| `ECHO_DRY_RUN=1` | Agents and RAG indexer skip real LLM / embedding calls and emit stub artifacts. Use for fast smoke tests without Ollama / OpenRouter. |
 | `ECHO_SKIP_AGENT_RUNNER=1` | `POST /api/agents/runs` persists the run but does NOT spawn the background `AgentRunner` task. Used by unit/integration tests so DB assertions aren't racy. |
+| `ECHO_TEST_DATABASE_URL` | Point integration tests at a local Postgres DB (e.g. `postgresql+asyncpg://admin:123456@127.0.0.1:5432/echo_test`) instead of spinning up a throwaway container via testcontainers. Unset → tests fall back to testcontainers (requires Docker). |
 | `CODEBASE_ROOT=/path/to/repo` | Root directory the agent `read_file` tool and indexer scan. Defaults to cwd. |
 
 ---
 
 ## 1. Infrastructure Tests
 
-### 1.1 Database Container
+### 1.1 Database
+
+**Option A — Docker Compose:**
 
 ```bash
 # Start just the DB
@@ -83,7 +117,24 @@ docker compose exec db psql -U admin -d echo -c "SELECT version();"
 
 # Verify pgvector
 docker compose exec db psql -U admin -d echo -c "CREATE EXTENSION IF NOT EXISTS vector; SELECT extversion FROM pg_extension WHERE extname = 'vector';"
-# Expected: 0.8.2
+# Expected: 0.8.x
+```
+
+**Option B — Local Postgres (Homebrew or similar):**
+
+```bash
+# Confirm the server is up
+pg_isready -h 127.0.0.1 -p 5432
+# Expected: "127.0.0.1:5432 - accepting connections"
+
+# Connect with the same credentials that are in .env
+psql postgresql://admin:123456@127.0.0.1:5432/echo -c "SELECT version();"
+# Expected: PostgreSQL 18.x
+
+# Verify pgvector (install first if missing: `brew install pgvector`)
+psql postgresql://admin:123456@127.0.0.1:5432/echo \
+  -c "CREATE EXTENSION IF NOT EXISTS vector; SELECT extversion FROM pg_extension WHERE extname = 'vector';"
+# Expected: 0.8.x
 ```
 
 ### 1.2 Run Migrations
@@ -95,28 +146,39 @@ mise run db:migrate
 # or if already up-to-date: "INFO  [alembic.runtime.migration] Will assume transactional DDL."
 ```
 
+> Alembic resolves the DB URL from `settings.database_url` (loaded from `.env`). Integration tests override this via alembic's `sqlalchemy.url` main option — see `tests/integration/conftest.py`.
+
 Verify tables:
 
 ```bash
+# Docker:
 docker compose exec db psql -U admin -d echo -c "\dt"
+# Local psql:
+psql postgresql://admin:123456@127.0.0.1:5432/echo -c "\dt"
 ```
 
 Expected tables: `users`, `sessions`, `agent_runs`, `trace_events`, `cost_ledger`, `audit_log`, `rag_chunks`, `graph_nodes`, `graph_edges`, `alembic_version`.
 
-### 1.3 Ollama Connectivity
+### 1.3 Ollama Connectivity (embeddings only)
 
 ```bash
 curl http://localhost:11434/api/tags
-# Expected: JSON with models list including gemma4:e4b
+# Expected: JSON with models list including nomic-embed-text
 
 # Test embedding
 curl http://localhost:11434/api/embed -d '{"model":"nomic-embed-text:latest","input":"hello world"}'
 # Expected: JSON with "embeddings" array, each vector has 768 dimensions
-
-# Test LLM (quick)
-curl http://localhost:11434/api/generate -d '{"model":"gemma4:e4b","prompt":"Say hello","stream":false}'
-# Expected: JSON with "response" field containing text
 ```
+
+### 1.4 OpenRouter Connectivity (chat)
+
+```bash
+curl -sS https://openrouter.ai/api/v1/models \
+  -H "Authorization: Bearer $OPENROUTER_API_KEY" | head -40
+# Expected: JSON with a "data" list of models.
+```
+
+Real chat calls happen through LiteLLM inside the agents; no separate curl needed for a smoke test. Set `ECHO_DRY_RUN=1` to avoid contacting OpenRouter at all.
 
 ---
 
@@ -126,8 +188,10 @@ curl http://localhost:11434/api/generate -d '{"model":"gemma4:e4b","prompt":"Say
 
 ```bash
 cd apps/api
-uv sync
+uv sync --extra dev     # includes pytest, testcontainers, pyright, ruff, etc.
 ```
+
+> `--extra dev` is required for `pytest`, `ruff`, `pyright`, and the integration-test helpers. A bare `uv sync` installs only the runtime deps and you will see `ModuleNotFoundError: No module named 'pytest'` (or `testcontainers`).
 
 ### 2.2 Unit Tests
 
@@ -150,17 +214,35 @@ uv run pytest -m "not integration and not ollama" -v
 - `test_api/test_traces_api.py` — trace 404 for unknown run, 200 for existing
 - `test_api/test_rag_api.py` — RAG query happy path with mocked retriever
 
-### 2.3 Integration Tests (requires Docker)
+### 2.3 Integration Tests
+
+These tests exercise real Postgres with pgvector. You can back them with either Docker-managed testcontainers **or** a local database you've already created.
+
+**Option A — Local Postgres (no Docker):**
+
+```bash
+# One-time: create an empty test DB with the required extensions
+psql postgresql://admin:123456@127.0.0.1:5432/template1 -c "CREATE DATABASE echo_test;"
+psql postgresql://admin:123456@127.0.0.1:5432/echo_test -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+
+cd apps/api
+ECHO_TEST_DATABASE_URL=postgresql+asyncpg://admin:123456@127.0.0.1:5432/echo_test \
+  uv run pytest -m integration -v
+```
+
+**Option B — Docker + testcontainers (what CI uses):**
 
 ```bash
 cd apps/api
 uv run pytest -m integration -v
 ```
 
-**Expected:** All pass. These use testcontainers to spin up a real Postgres with pgvector. Tests:
+**Expected:** All pass (ollama-smoke tests skip unless `RUN_OLLAMA_TESTS=1`). Tests:
 - `test_health_db.py` — /health with real DB, pgvector extension present, all tables created
 - `test_rag_flow.py` — chunker splits fixture file, `write_chunks_to_db` writes embeddings, retriever returns ordered results via `<=>` cosine distance
-- `test_agents_flow.py` — POST creates and persists run, `AgentRunner` executes graph (under `ECHO_DRY_RUN=1`), trace events and cost_ledger rows written, WebSocket receives `run_start` → `run_complete`
+- `test_agents_flow.py` — POST creates and persists run, `GET /api/traces/{run_id}` returns 200 (+ 404 on unknown id), list/stats endpoints return the expected shape
+
+> The integration-test conftest swaps `src.db.session.engine` out for a test-DB engine using `NullPool`, so routes hit the test DB instead of the `.env`-configured dev DB. No data in `echo` is touched.
 
 ### 2.4 Ollama Smoke Tests (requires running Ollama)
 
@@ -361,8 +443,13 @@ The indexer scans `.py`, `.ts`, `.tsx`, `.md` files, chunks them (AST-aware for 
 Verify in the DB:
 
 ```bash
+# Docker:
 docker compose exec db psql -U admin -d echo -c "SELECT count(*) FROM rag_chunks;"
 docker compose exec db psql -U admin -d echo -c "SELECT file_path, chunk_type, start_line, end_line FROM rag_chunks LIMIT 5;"
+
+# Local psql:
+psql postgresql://admin:123456@127.0.0.1:5432/echo -c "SELECT count(*) FROM rag_chunks;"
+psql postgresql://admin:123456@127.0.0.1:5432/echo -c "SELECT file_path, chunk_type, start_line, end_line FROM rag_chunks LIMIT 5;"
 ```
 
 > **Dry-run mode:** With `ECHO_DRY_RUN=1` the indexer prints the first 5 chunks to stdout and skips embedding + DB writes entirely — use this if Ollama isn't running.
@@ -494,29 +581,37 @@ For a fully green E2E run you need: DB migrated, API running on :8000 with `ECHO
 Run these commands in sequence for a quick confidence check:
 
 ```bash
-# 1. Start infrastructure
-docker compose up -d db
+# 1. Start infrastructure (Docker OR local Postgres; see §1.1)
+docker compose up -d db            # ...or skip if you're using a local Postgres
 mise run db:migrate
 
-# 2. Run unit tests
+# 2. Install API dev deps (first time only)
+cd apps/api && uv sync --extra dev && cd ../..
+
+# 3. Run unit tests
 cd apps/api && uv run pytest -m "not integration and not ollama" -v && cd ../..
 cd apps/web && bun run vitest run && cd ../..
 
-# 3. Run integration tests
-cd apps/api && uv run pytest -m integration -v && cd ../..
+# 4. Run integration tests
+#    Local Postgres:
+cd apps/api && \
+  ECHO_TEST_DATABASE_URL=postgresql+asyncpg://admin:123456@127.0.0.1:5432/echo_test \
+  uv run pytest -m integration -v && cd ../..
+#    Docker / testcontainers:
+# cd apps/api && uv run pytest -m integration -v && cd ../..
 
-# 4. Verify API
-mise run dev:api &
+# 5. Verify API
+ECHO_DRY_RUN=1 mise run dev:api &
 sleep 3
 curl http://localhost:8000/health
 
-# 5. Verify frontend builds
+# 6. Verify frontend builds
 cd apps/web && bun run build && cd ../..
 
-# 6. Run indexer
+# 7. Run indexer (requires Ollama for real embeddings; otherwise ECHO_DRY_RUN=1)
 mise run index
 
-# 7. (Optional) Ollama smoke tests
+# 8. (Optional) Ollama smoke tests
 cd apps/api && RUN_OLLAMA_TESTS=1 uv run pytest -m ollama -v && cd ../..
 ```
 

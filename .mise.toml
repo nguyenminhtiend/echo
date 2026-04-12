@@ -22,7 +22,7 @@ run = "uv run fastapi dev src/main.py --port 8000"
 
 [tasks."dev:web"]
 description = "Start Next.js frontend"
-dir = "apps/web"
+dir = "apps/web
 run = "bun run dev"
 
 [tasks."db:migrate"]

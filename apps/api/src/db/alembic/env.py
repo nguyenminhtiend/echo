@@ -14,8 +14,18 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _resolved_url() -> str:
+    """Use the sqlalchemy.url alembic main option if it was set by the caller
+    (e.g. the integration-test conftest), otherwise fall back to the app
+    settings. This lets tests point alembic at a throwaway DB without touching
+    the developer's .env-configured DATABASE_URL.
+    """
+    override = config.get_main_option("sqlalchemy.url")
+    return override or settings.database_url
+
+
 def run_migrations_offline():
-    context.configure(url=settings.database_url, target_metadata=target_metadata)
+    context.configure(url=_resolved_url(), target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
 
@@ -27,7 +37,10 @@ def do_run_migrations(connection):
 
 
 async def run_migrations_online():
-    connectable = create_async_engine(settings.database_url)
+    url = _resolved_url()
+    if "+asyncpg" not in url and url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    connectable = create_async_engine(url)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

@@ -19,6 +19,12 @@ dependencies = [
     "litellm>=1.83.0",
     "langchain-core>=0.3.0",
     "presidio-analyzer",
+    # Presidio's AnalyzerEngine needs a spaCy model at runtime. The default is
+    # en_core_web_lg (~500MB); we use the small model (~12MB) instead, pinned
+    # to the same version spaCy 3.8 expects. Without this dep, Presidio will
+    # try to `python -m spacy download` at first use, which fails inside uv's
+    # pip-less venvs (see src/gateway/scrubber.py).
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "langgraph~=1.1.0",
     "llama-index-core~=0.14",
     "llama-index-vector-stores-postgres",
